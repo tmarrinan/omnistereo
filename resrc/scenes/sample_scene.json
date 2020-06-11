@@ -1,50 +1,72 @@
 {
-    "camera": {
-        "position": [0.0, 8.5, 0.0],
-        "direction": [0.0, -1.0, 0.0],
-        "up": [-1.0, 0.0, 0.0]
-    },
+    "camera_position": [0.0, 1.8, 0.0],
     "models": [
         {
             "type": "plane",
-            "shader": "texture",
+            "textured": false,
             "material": {
-                "color": [1.0, 1.0, 1.0],
+                "color": [0.7, 0.1, 0.1],
                 "specular": [0.0, 0.0, 0.0],
                 "shininess": 1
             },
-            "texture": {
-                "url": "images/Checkered.jpg",
-                "scale": [4, 4]
-            },
             "center": [0.0, 0.0, 0.0],
-            "size": [8.0, 1.0, 8.0]
+            "size": [12.0, 1.0, 12.0],
+            "rotate_x": 0.0,
+            "rotate_y": 0.0,
+            "rotate_z": 0.0
         },
         {
             "type": "sphere",
-            "shader": "texture",
+            "textured": false,
             "material": {
-                "color": [1.0, 1.0, 1.0],
+                "color": [0.1, 0.4, 0.9],
                 "specular": [1.0, 1.0, 1.0],
                 "shininess": 32
             },
-            "texture": {
-                "url": "images/World_Map.jpg",
-                "scale": [1, 1]
+            "center": [0.5, 1.0, -4.0],
+            "size": [2.0, 2.0, 2.0],
+            "rotate_x": 0.0,
+            "rotate_y": 0.0,
+            "rotate_z": 0.0
+        },
+        {
+            "type": "cube",
+            "textured": false,
+            "material": {
+                "color": [0.2, 0.7, 0.3],
+                "specular": [1.0, 1.0, 1.0],
+                "shininess": 8
             },
-            "center": [0.0, 1.0, -3.0],
-            "size": [2.0, 2.0, 2.0]
+            "center": [-2.1, 1.0, -3.5],
+            "size": [2.0, 2.0, 2.0],
+            "rotate_x": 45.0,
+            "rotate_y": 60.0,
+            "rotate_z": 0.0
+        },
+        {
+            "type": "sphere",
+            "textured": false,
+            "material": {
+                "color": [0.7, 0.7, 0.3],
+                "specular": [1.0, 1.0, 1.0],
+                "shininess": 8
+            },
+            "center": [0.0, 10.0, 3.0],
+            "size": [10.0, 2.0, 2.0],
+            "rotate_x": 0.0,
+            "rotate_y": 0.0,
+            "rotate_z": 0.0
         }
     ],
     "light": {
-        "ambient": [0.15, 0.15, 0.15],
+        "ambient": [0.25, 0.25, 0.25],
         "point_lights": [
             {
-                "position": [1.5, 3.0, 1.5],
+                "position": [0.0, 3.0, -2.5],
                 "color": [1.0, 1.0, 1.0]
             },
             {
-                "position": [-2.0, 3.5, -2.5],
+                "position": [4.5, 1.0, 1.0],
                 "color": [1.0, 1.0, 1.0]
             }
         ]

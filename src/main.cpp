@@ -2,20 +2,48 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <vector>
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/mat3x3.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/string_cast.hpp>
 #include "jsobject.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+enum ModelType : uint8_t {PLANE, CUBE, SPHERE};
 
 typedef struct Model {
     GLuint vertex_array;
     GLuint face_index_count;
 } Model;
+
+typedef struct Object {
+    ModelType type;
+    bool textured;
+    glm::vec3 material_color;
+    glm::vec3 material_specular;
+    GLfloat material_shininess;
+    glm::vec3 center;
+    glm::vec3 size;
+    GLfloat rotate_x;
+    GLfloat rotate_y;
+    GLfloat rotate_z;
+} Object;
+
+typedef struct Scene {
+    glm::vec3 camera_pos;
+    std::vector<Object*> models;
+    glm::vec3 ambient_light;
+    int num_lights;
+    GLfloat *light_positions;
+    GLfloat *light_colors;
+} Scene;
 
 typedef struct App {
     GLuint program;
@@ -27,16 +55,17 @@ typedef struct App {
     Model cube_model;
     Model sphere_model;
     glm::mat4 mat_model;
-    glm::vec3 camera_pos;
-    jsvar scene;
+    glm::mat3 mat_normal;
+    Scene scene;
 } App;
 
 void init(GLFWwindow *window, const char *scene_filename, App &app_ptr);
-void idle(GLFWwindow *window);
-void render(GLFWwindow *window);
-void loadShader(const char *vert_filename, const char *frag_filename, App &app);
+void initializeScene(jsvar scene_desc, Scene &scene);
+void idle(GLFWwindow *window, App &app_ptr);
+void render(GLFWwindow *window, App &app_ptr);
+void loadShader(const char *vert_filename, const char *geom_filename, const char *frag_filename, App &app);
 GLint compileShader(char *source, int32_t length, GLenum type);
-GLuint createShaderProgram(GLuint vertex_shader, GLuint fragment_shader);
+GLuint createShaderProgram(GLuint vertex_shader, GLuint geometry_shader, GLuint fragment_shader);
 void linkShaderProgram(GLuint program);
 int32_t readFile(const char* filename, char** data_ptr);
 GLuint createPlaneVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
@@ -80,7 +109,7 @@ int main(int argc, char **argv)
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-        idle(window);
+        idle(window, app);
     }
 
     // clean up
@@ -106,8 +135,6 @@ void init(GLFWwindow *window, const char *scene_filename, App &app)
     app.vertex_position_attrib = 0;
     app.vertex_normal_attrib = 1;
     app.vertex_texcoord_attrib = 2;
-    
-    app.camera_pos = glm::vec3(0.0, 0.0, 0.0);
 
     app.plane_model.vertex_array = createPlaneVao(app.vertex_position_attrib, app.vertex_normal_attrib, app.vertex_texcoord_attrib, &(app.plane_model.face_index_count));
     app.cube_model.vertex_array = createCubeVao(app.vertex_position_attrib, app.vertex_normal_attrib, app.vertex_texcoord_attrib, &(app.cube_model.face_index_count));
@@ -117,37 +144,148 @@ void init(GLFWwindow *window, const char *scene_filename, App &app)
     std::cout << "Model [cube]: " << app.cube_model.face_index_count / 3 << " triangles" << std::endl;
     std::cout << "Model [sphere]: " << app.sphere_model.face_index_count / 3 << " triangles" << std::endl;
 
-    app.scene = jsobject::parseFromFile(scene_filename);
+    initializeScene(jsobject::parseFromFile(scene_filename), app.scene);
 
-    loadShader("resrc/shaders/equirect_color.vert", "resrc/shaders/equirect_color.frag", app);
+
+    loadShader("resrc/shaders/equirect_color.vert", "resrc/shaders/equirect_color.geom", "resrc/shaders/equirect_color.frag", app);
 }
 
-void idle(GLFWwindow *window)
+void initializeScene(jsvar scene_desc, Scene &scene)
 {
-    render(window);
+    int i;
+    // Scene camera position
+    scene.camera_pos = glm::vec3(scene_desc["camera_position"][0],
+                                 scene_desc["camera_position"][1],
+                                 scene_desc["camera_position"][2]);
+    
+    // Scene models
+    for (i = 0; i < scene_desc["models"].length(); i++)
+    {
+        Object *model = new Object();
+        if ((std::string)scene_desc["models"][i]["type"] == "plane")
+            model->type = ModelType::PLANE;
+        else if ((std::string)scene_desc["models"][i]["type"] == "cube")
+            model->type = ModelType::CUBE;
+        else // (std::string)scene_desc["models"][i]["type"] == "sphere"
+            model->type = ModelType::SPHERE;
+        model->textured = scene_desc["models"][i]["textured"];
+        model->material_color = glm::vec3(scene_desc["models"][i]["material"]["color"][0],
+                                          scene_desc["models"][i]["material"]["color"][1],
+                                          scene_desc["models"][i]["material"]["color"][2]);
+        model->material_specular = glm::vec3(scene_desc["models"][i]["material"]["specular"][0],
+                                             scene_desc["models"][i]["material"]["specular"][1],
+                                             scene_desc["models"][i]["material"]["specular"][2]);
+        model->material_shininess = scene_desc["models"][i]["material"]["shininess"];
+        model->center = glm::vec3(scene_desc["models"][i]["center"][0],
+                                  scene_desc["models"][i]["center"][1],
+                                  scene_desc["models"][i]["center"][2]);
+        model->size = glm::vec3(scene_desc["models"][i]["size"][0],
+                                scene_desc["models"][i]["size"][1],
+                                scene_desc["models"][i]["size"][2]);
+        model->rotate_x = scene_desc["models"][i]["rotate_x"];
+        model->rotate_y = scene_desc["models"][i]["rotate_y"];
+        model->rotate_z = scene_desc["models"][i]["rotate_z"];
+        scene.models.push_back(model);
+    }
+
+    // Scene lights
+    scene.ambient_light = glm::vec3(scene_desc["light"]["ambient"][0],
+                                    scene_desc["light"]["ambient"][1],
+                                    scene_desc["light"]["ambient"][2]);
+    scene.num_lights = scene_desc["light"]["point_lights"].length();
+    scene.light_positions = new GLfloat[3 * scene.num_lights];
+    scene.light_colors = new GLfloat[3 * scene.num_lights];
+    for (i = 0; i < scene.num_lights; i++)
+    {
+        scene.light_positions[3 * i] = scene_desc["light"]["point_lights"][i]["position"][0];
+        scene.light_positions[3 * i + 1] = scene_desc["light"]["point_lights"][i]["position"][1];
+        scene.light_positions[3 * i + 2] = scene_desc["light"]["point_lights"][i]["position"][2];
+        scene.light_colors[3 * i] = scene_desc["light"]["point_lights"][i]["color"][0];
+        scene.light_colors[3 * i + 1] = scene_desc["light"]["point_lights"][i]["color"][1];
+        scene.light_colors[3 * i + 2] = scene_desc["light"]["point_lights"][i]["color"][2];
+    }
 }
 
-void render(GLFWwindow *window)
+void idle(GLFWwindow *window, App &app)
 {
+    render(window, app);
+}
+
+void render(GLFWwindow *window, App &app)
+{
+    int i;
+
+    // Delete previous frame (reset both framebuffer and z-buffer)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Draw all models
+    for (i = 0; i < app.scene.models.size(); i++)
+    {
+        // Select shader program to use
+        glUseProgram(app.program);
+
+        // Transform model to proper position, size, and orientation
+        app.mat_model = glm::translate(glm::mat4(1.0), app.scene.models[i]->center);
+        app.mat_model = glm::rotate(app.mat_model, glm::radians(app.scene.models[i]->rotate_z), glm::vec3(0.0, 0.0, 1.0));
+        app.mat_model = glm::rotate(app.mat_model, glm::radians(app.scene.models[i]->rotate_y), glm::vec3(0.0, 1.0, 0.0));
+        app.mat_model = glm::rotate(app.mat_model, glm::radians(app.scene.models[i]->rotate_x), glm::vec3(1.0, 0.0, 0.0));
+        app.mat_model = glm::scale(app.mat_model, app.scene.models[i]->size);
+
+        // Create normal matrix (based off of model matrix)
+        app.mat_normal = glm::inverse(app.mat_model);
+        app.mat_normal = glm::transpose(app.mat_normal);
+
+        // Upload values to shader uniform variables
+        glUniformMatrix4fv(app.uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat_model));
+        glUniformMatrix3fv(app.uniforms["normal_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat_normal));
+        glUniform1i(app.uniforms["num_lights"], app.scene.num_lights);
+        glUniform3fv(app.uniforms["light_ambient"], 1, glm::value_ptr(app.scene.ambient_light));
+        glUniform3fv(app.uniforms["light_position[0]"], app.scene.num_lights, app.scene.light_positions);
+        glUniform3fv(app.uniforms["light_color[0]"], app.scene.num_lights, app.scene.light_colors);
+        glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
+        glUniform3fv(app.uniforms["material_color"], 1, glm::value_ptr(app.scene.models[i]->material_color));
+        glUniform3fv(app.uniforms["material_specular"], 1, glm::value_ptr(app.scene.models[i]->material_specular));
+        glUniform1f(app.uniforms["material_shininess"], app.scene.models[i]->material_shininess);
+
+        // Render model
+        Model *model;
+        switch (app.scene.models[i]->type)
+        {
+            case ModelType::PLANE:
+                model = &(app.plane_model);
+                break;
+            case ModelType::CUBE:
+                model = &(app.cube_model);
+                break;
+            case ModelType::SPHERE:
+                model = &(app.sphere_model);
+                break;
+        }
+        glBindVertexArray(model->vertex_array);
+        glDrawElements(GL_TRIANGLES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
+        glBindVertexArray(0);
+    }
 
     glfwSwapBuffers(window);
 }
 
-void loadShader(const char *vert_filename, const char *frag_filename, App &app)
+void loadShader(const char *vert_filename, const char *geom_filename, const char *frag_filename, App &app)
 {
     // Read vertex and fragment shaders from file
-    char *vert_source, *frag_source;
+    char *vert_source, *geom_source, *frag_source;
     int32_t vert_length = readFile(vert_filename, &vert_source);
+    int32_t geom_length = readFile(geom_filename, &geom_source);
     int32_t frag_length = readFile(frag_filename, &frag_source);
 
     // Compile vetex shader
     GLuint vertex_shader = compileShader(vert_source, vert_length, GL_VERTEX_SHADER);
+    // Compile geometry shader
+    GLuint geometry_shader = compileShader(geom_source, geom_length, GL_GEOMETRY_SHADER);
     // Compile fragment shader
     GLuint fragment_shader = compileShader(frag_source, frag_length, GL_FRAGMENT_SHADER);
 
     // Create GPU program from the compiled vertex and fragment shaders
-    app.program = createShaderProgram(vertex_shader, fragment_shader);
+    app.program = createShaderProgram(vertex_shader, geometry_shader, fragment_shader);
 
     // Specify input and output attributes for the GPU program
     glBindAttribLocation(app.program, app.vertex_position_attrib, "vertex_position");
@@ -167,10 +305,10 @@ void loadShader(const char *vert_filename, const char *frag_filename, App &app)
     GLsizei name_length;
     GLint size;
     GLenum type;
-    for (i = 0; i < num_uniforms; i++) {
+    for (i = 0; i < num_uniforms; i++)
+    {
         glGetActiveUniform(app.program, i, max_name_length, &name_length, &size, &type, uniform_name);
         app.uniforms[uniform_name] = glGetUniformLocation(app.program, uniform_name);
-        std::cout << uniform_name << ": " << app.uniforms[uniform_name] << std::endl;
     }
 }
 
@@ -206,13 +344,14 @@ GLint compileShader(char *source, int32_t length, GLenum type)
     return shader;
 }
 
-GLuint createShaderProgram(GLuint vertex_shader, GLuint fragment_shader)
+GLuint createShaderProgram(GLuint vertex_shader, GLuint geometry_shader, GLuint fragment_shader)
 {
     // Create a GPU program
     GLuint program = glCreateProgram();
     
-    // Attach the vertex and fragment shaders to that program
+    // Attach the vertex, geometry, and fragment shaders to that program
     glAttachShader(program, vertex_shader);
+    glAttachShader(program, geometry_shader);
     glAttachShader(program, fragment_shader);
 
     return program;

@@ -417,7 +417,6 @@ inline jsvar::operator float() {
 	}
 	if (type == JS_TYPE_INTEGER)
 		return (float)inumber;
-	printf("conversion to float: %.6f\n", (float)fnumber);
 	return (float)fnumber;
 }
 
