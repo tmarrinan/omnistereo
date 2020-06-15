@@ -1,6 +1,4 @@
-#version 330 core
-
-precision mediump float;
+#version 410 core
 
 in vec3 world_position;
 in vec3 world_normal;

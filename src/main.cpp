@@ -63,10 +63,11 @@ void init(GLFWwindow *window, const char *scene_filename, App &app_ptr);
 void initializeScene(jsvar scene_desc, Scene &scene);
 void idle(GLFWwindow *window, App &app_ptr);
 void render(GLFWwindow *window, App &app_ptr);
-void loadShader(const char *vert_filename, const char *geom_filename, const char *frag_filename, App &app);
+void loadShader(std::string shader_filename_base, App &app);
 GLint compileShader(char *source, int32_t length, GLenum type);
-GLuint createShaderProgram(GLuint vertex_shader, GLuint geometry_shader, GLuint fragment_shader);
+GLuint createShaderProgram(GLuint shaders[], uint num_shaders);
 void linkShaderProgram(GLuint program);
+std::string shaderTypeToString(GLenum type);
 int32_t readFile(const char* filename, char** data_ptr);
 GLuint createPlaneVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
 GLuint createCubeVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
@@ -87,8 +88,8 @@ int main(int argc, char **argv)
     }
 
     // Create a window and its OpenGL context
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     GLFWwindow *window = glfwCreateWindow(width, height, "OmniStereo", NULL, NULL);
@@ -146,8 +147,70 @@ void init(GLFWwindow *window, const char *scene_filename, App &app)
 
     initializeScene(jsobject::parseFromFile(scene_filename), app.scene);
 
+    loadShader("resrc/shaders/equirect_color", app);
 
-    loadShader("resrc/shaders/equirect_color.vert", "resrc/shaders/equirect_color.geom", "resrc/shaders/equirect_color.frag", app);
+    // test
+    glm::vec3 v0 = glm::vec3(-6.0, 0.0, 0.0);
+    glm::vec3 v1 = glm::vec3(0.001097, 0.0, 0.001031);
+    glm::vec3 v2 = glm::vec3(-6.0, 0.0, -6.0);
+
+    glm::vec3 ab = v1 - v0;
+    glm::vec3 ac = v2 - v0;
+    glm::vec3 plane = glm::cross(ab, ac);
+    float d = -1 * (plane[0] * v0[0] + plane[1] * v0[1] + plane[2] * v0[2]);
+
+    std::cout << "plane: " << glm::to_string(plane) << ", " << d << std::endl;
+
+    glm::vec3 p = glm::vec3(0.0, -d / plane[1], 0.0);
+    std::cout << "p: " << glm::to_string(p) << std::endl;
+
+    //glm::vec3 ab = v1 - v0;
+    //glm::vec3 ac = v2 - v0;
+    glm::vec3 ap = p - v0;
+    float d00 = glm::dot(ab, ab);
+    float d01 = glm::dot(ab, ac);
+    float d11 = glm::dot(ac, ac);
+    float d20 = glm::dot(ap, ab);
+    float d21 = glm::dot(ap, ac);
+    float inv_denom = 1.0 / ((d00 * d11) - (d01 * d01));
+    float w1 = ((d11 * d20) - (d01 * d21)) * inv_denom;
+    float w2 = ((d00 * d21) - (d01 * d20)) * inv_denom;
+    float w0 = 1.0 - w1 - w2;
+
+    /*
+    float area_total = glm::length(plane);
+    
+    glm::vec3 edge12 = v2 - v1;
+    glm::vec3 edge1p = p - v1;
+    float w0 = glm::length(glm::cross(edge12, edge1p)) / area_total;
+
+    glm::vec3 edge20 = v0 - v2;
+    glm::vec3 edge2p = p - v2;
+    float w1 = glm::length(glm::cross(edge20, edge2p)) / area_total;
+
+    float w2 = 1.0 - w0 - w1;
+    */
+
+    /*
+    float y12 = v1[1] - v2[1];
+    float xp2 = p[0] - v2[0];
+    float x21 = v2[0] - v1[0];
+    float yp2 = p[1] - v2[1];
+    float x02 = v0[0] - v2[0];
+    float y02 = v0[1] - v2[1];
+    float y20 = v2[1] - v0[1];
+    
+    float denom = (y12 * x02) + (x21 * y02);
+    
+    float w0 = ((y12 * xp2) + (x21 * yp2)) / denom;
+    float w1 = ((y20 * xp2) + (x02 * yp2)) / denom;
+    float w2 = 1.0 - w0 - w1;
+    */
+
+    glm::vec3 weights = glm::vec3(w0, w1, w2);
+
+    std::cout << inv_denom << std::endl;
+    std::cout << glm::to_string(weights) << std::endl;
 }
 
 void initializeScene(jsvar scene_desc, Scene &scene)
@@ -262,30 +325,44 @@ void render(GLFWwindow *window, App &app)
                 break;
         }
         glBindVertexArray(model->vertex_array);
-        glDrawElements(GL_TRIANGLES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
+        //glDrawElements(GL_TRIANGLES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
+        glPatchParameteri(GL_PATCH_VERTICES, 3);
+        glDrawElements(GL_PATCHES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
         glBindVertexArray(0);
     }
 
     glfwSwapBuffers(window);
 }
 
-void loadShader(const char *vert_filename, const char *geom_filename, const char *frag_filename, App &app)
+void loadShader(std::string shader_filename_base, App &app)
 {
     // Read vertex and fragment shaders from file
-    char *vert_source, *geom_source, *frag_source;
-    int32_t vert_length = readFile(vert_filename, &vert_source);
-    int32_t geom_length = readFile(geom_filename, &geom_source);
-    int32_t frag_length = readFile(frag_filename, &frag_source);
+    char *vert_source, *tesc_source, *tese_source, *geom_source, *frag_source;
+    std::string vert_filename = shader_filename_base + ".vert";
+    std::string tesc_filename = shader_filename_base + ".tcs";
+    std::string tese_filename = shader_filename_base + ".tes";
+    std::string geom_filename = shader_filename_base + ".geom";
+    std::string frag_filename = shader_filename_base + ".frag";
+    int32_t vert_length = readFile(vert_filename.c_str(), &vert_source);
+    int32_t tesc_length = readFile(tesc_filename.c_str(), &tesc_source);
+    int32_t tese_length = readFile(tese_filename.c_str(), &tese_source);
+    int32_t geom_length = readFile(geom_filename.c_str(), &geom_source);
+    int32_t frag_length = readFile(frag_filename.c_str(), &frag_source);
 
     // Compile vetex shader
     GLuint vertex_shader = compileShader(vert_source, vert_length, GL_VERTEX_SHADER);
+    // Compile vetex shader
+    GLuint tess_ctrl_shader = compileShader(tesc_source, tesc_length, GL_TESS_CONTROL_SHADER);
+    // Compile vetex shader
+    GLuint tess_eval_shader = compileShader(tese_source, tese_length, GL_TESS_EVALUATION_SHADER);
     // Compile geometry shader
     GLuint geometry_shader = compileShader(geom_source, geom_length, GL_GEOMETRY_SHADER);
     // Compile fragment shader
     GLuint fragment_shader = compileShader(frag_source, frag_length, GL_FRAGMENT_SHADER);
 
     // Create GPU program from the compiled vertex and fragment shaders
-    app.program = createShaderProgram(vertex_shader, geometry_shader, fragment_shader);
+    GLuint shaders[5] = {vertex_shader, tess_ctrl_shader, tess_eval_shader, geometry_shader, fragment_shader};
+    app.program = createShaderProgram(shaders, 5);
 
     // Specify input and output attributes for the GPU program
     glBindAttribLocation(app.program, app.vertex_position_attrib, "vertex_position");
@@ -334,7 +411,8 @@ GLint compileShader(char *source, int32_t length, GLenum type)
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &log_length);
         char *info = new char[log_length + 1];
         glGetShaderInfoLog(shader, log_length, NULL, info);
-        std::cerr << "Error: failed to compile " << ((type == GL_VERTEX_SHADER) ? "vertex" : "fragment") << " shader:" << std::endl;
+        std::string shader_type = shaderTypeToString(type);
+        std::cerr << "Error: failed to compile " << shader_type << " shader:" << std::endl;
         std::cerr << info << std::endl;
         delete[] info;
 
@@ -344,15 +422,17 @@ GLint compileShader(char *source, int32_t length, GLenum type)
     return shader;
 }
 
-GLuint createShaderProgram(GLuint vertex_shader, GLuint geometry_shader, GLuint fragment_shader)
+GLuint createShaderProgram(GLuint shaders[], uint num_shaders)
 {
     // Create a GPU program
     GLuint program = glCreateProgram();
     
-    // Attach the vertex, geometry, and fragment shaders to that program
-    glAttachShader(program, vertex_shader);
-    glAttachShader(program, geometry_shader);
-    glAttachShader(program, fragment_shader);
+    // Attach all shaders to that program
+    int i;
+    for (i = 0; i < num_shaders; i++)
+    {
+        glAttachShader(program, shaders[i]);
+    }
 
     return program;
 }
@@ -375,6 +455,30 @@ void linkShaderProgram(GLuint program)
         std::cerr << info << std::endl;
         delete[] info;
     }
+}
+
+std::string shaderTypeToString(GLenum type)
+{
+    std::string shader_type;
+    switch (type)
+    {
+        case GL_VERTEX_SHADER:
+            shader_type = "vertex";
+            break;
+        case GL_TESS_CONTROL_SHADER:
+            shader_type = "tessellation control";
+            break;
+        case GL_TESS_EVALUATION_SHADER:
+            shader_type = "tessellation evaluation";
+            break;
+        case GL_GEOMETRY_SHADER:
+            shader_type = "geometry";
+            break;
+        case GL_FRAGMENT_SHADER:
+            shader_type = "fragment";
+            break;
+    }
+    return shader_type;
 }
 
 int32_t readFile(const char* filename, char** data_ptr)
