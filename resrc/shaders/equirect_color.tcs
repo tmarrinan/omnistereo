@@ -1,0 +1,23 @@
+#version 410 core
+
+layout(vertices = 3) out;
+
+in vec3 world_position_vert[];
+in vec3 world_normal_vert[];
+
+uniform vec3 camera_position;
+
+out vec3 world_position_tesc[];
+out vec3 world_normal_tesc[];
+
+void main() {
+    world_position_tesc[gl_InvocationID] = world_position_vert[gl_InvocationID];
+    world_normal_tesc[gl_InvocationID] = world_normal_vert[gl_InvocationID];
+    if (gl_InvocationID == 0) {
+        // subdivisions
+        gl_TessLevelOuter[0] = 4.0; // subdivisions along v0,v1 edge 
+        gl_TessLevelOuter[1] = 4.0; // subdivisions along v1,v2 edge
+        gl_TessLevelOuter[2] = 4.0; // subdivisions along v2,v0 edge
+        gl_TessLevelInner[0] = 3.0; // internal subdivisions
+	}
+}
