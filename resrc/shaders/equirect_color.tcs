@@ -1,5 +1,7 @@
 #version 410 core
 
+#define M_PI 3.1415926535897932384626433832795
+
 layout(vertices = 3) out;
 
 in vec3 world_position_vert[];
@@ -10,14 +12,55 @@ uniform vec3 camera_position;
 out vec3 world_position_tesc[];
 out vec3 world_normal_tesc[];
 
+float min3(float v[3]);
+float max3(float v[3]);
+float max3(float v[4]);
+
 void main() {
     world_position_tesc[gl_InvocationID] = world_position_vert[gl_InvocationID];
     world_normal_tesc[gl_InvocationID] = world_normal_vert[gl_InvocationID];
+
     if (gl_InvocationID == 0) {
+        
+        int i;
+        vec3 vertex_direction;
+        float longitude[3];
+        for (i = 0; i < 3; i++){
+            vertex_direction = world_position_vert[i] - camera_position;
+            longitude[i] = -atan(vertex_direction.x, vertex_direction.z) / M_PI;
+        }
+        float min_lon = min3(longitude);
+        float max_lon = max3(longitude);
+        if (max_lon - min_lon > 1.0) { // triangle crosses the x=0 plane while z <= 0 (i.e. wraps around left-right edges)
+            for (i = 0; i < 3; i++) {
+                longitude[i] = (longitude[i] > 0.0) ? longitude[i] - 2.0 : longitude[i];
+            }
+        }
+
         // subdivisions
-        gl_TessLevelOuter[0] = 4.0; // subdivisions along v0,v1 edge 
-        gl_TessLevelOuter[1] = 4.0; // subdivisions along v1,v2 edge
-        gl_TessLevelOuter[2] = 4.0; // subdivisions along v2,v0 edge
+        gl_TessLevelOuter[0] = max(ceil(16.0 * abs(longitude[1] - longitude[2])), 1.0); // subdivisions along v1,v2 edge
+        gl_TessLevelOuter[1] = max(ceil(16.0 * abs(longitude[2] - longitude[0])), 1.0); // subdivisions along v2,v0 edge
+        gl_TessLevelOuter[2] = max(ceil(16.0 * abs(longitude[0] - longitude[1])), 1.0); // subdivisions along v0,v1 edge
+        gl_TessLevelInner[0] = max3(gl_TessLevelOuter); // internal subdivisions
+        
+
+        /*
+        gl_TessLevelOuter[0] = 3.0; // subdivisions along v1,v2 edge
+        gl_TessLevelOuter[1] = 3.0; // subdivisions along v2,v0 edge
+        gl_TessLevelOuter[2] = 3.0; // subdivisions along v0,v1 edge
         gl_TessLevelInner[0] = 3.0; // internal subdivisions
+        */
 	}
+}
+
+float min3(float v[3]) {
+  return min(min(v[0], v[1]), v[2]);
+}
+
+float max3(float v[3]) {
+  return max(max(v[0], v[1]), v[2]);
+}
+
+float max3(float v[4]) {
+  return max(max(v[0], v[1]), v[2]);
 }

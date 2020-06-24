@@ -15,8 +15,8 @@ uniform vec3 camera_position;
 out vec3 world_position;
 out vec3 world_normal;
 
-float min3 (vec3 v);
-float max3 (vec3 v);
+float min3(vec3 v);
+float max3(vec3 v);
 void projectTriangle(vec3 verts[3], out vec4 projected_verts[3]);
 vec4 equirectangular(vec3 vertex_position);
 float projectedDistance(vec3 vertex_position);
@@ -61,19 +61,7 @@ void main() {
 
         // pole crosses through a vertex
         if (v0_dir == origin || v1_dir == origin || v2_dir == origin) {
-            int pole_vert;
-            // pole crosses through vertex 0
-            if (v0_dir == origin) {
-                pole_vert = 0;
-            }
-            // pole crosses through vertex 1
-            else if (v1_dir == origin) {
-                pole_vert = 1;
-            }
-            // pole crosses through vertex 2
-            else {
-                pole_vert = 2;
-            }
+            int pole_vert = (v0_dir == origin) ? 0 : ((v1_dir == origin) ? 1 : 2);
             num_verts = 4;
             int idx;
             for (i = 0; i < 2; i++) {
@@ -93,19 +81,7 @@ void main() {
             vec3 pole_intersect_normal = normalize(lerp3D(world_normal_tese[0], world_normal_tese[1], world_normal_tese[2], weights));
             float pole_intersect_distance = projectedDistance(pole_intersect_position);
 
-            int indices[3];
-            // pole crosses through edge 1-2
-            if (weights.x < EPSILON) {
-                indices = int[](2, 0, 1);
-            }
-            // pole crosses through edge 2-0
-            else if (weights.y < EPSILON) {
-                indices = int[](0, 1, 2);
-            }
-            // pole crosses through edge 0-1
-            else {
-                indices = int[](1, 2, 0);
-            }
+            int indices[3] = (weights.x < EPSILON) ? int[](2, 0, 1) : ((weights.y < EPSILON) ? int[](0, 1, 2) : int[](1, 2, 0));
             num_verts = 6;
             for (i = 0; i < 3; i++) {
                 final_projected_verts[2 * i] = vec4(projected_verts[indices[i]].x, projected_pole, pole_intersect_distance, 1.0);
@@ -128,10 +104,10 @@ void main() {
             for (i = 0; i < 3; i++) {
                 int idx = i;
                 float x0 = projected_verts[i].x;
-                if (x0 > 0.0) x0 -= 2.0;
+                x0 = (x0 > 0.0) ? x0 - 2.0 : x0;
                 for (j = i - 1; j >= 0; j--) {
                     float x1 = projected_verts[indices[j]].x;
-                    if (x1 > 0.0) x1 -= 2.0;
+                    x1 = (x1 > 0.0) ? x1 - 2.0 : x1;
                     if (x1 > x0) {
                         indices[j+1] = indices[j];
                         idx = j;
@@ -165,9 +141,7 @@ void main() {
     if (max_lon - min_lon > 1.0) { // triangle crosses the x=0 plane while z <= 0 (i.e. wraps around left-right edges)
         // left side
         for (i = 0; i < num_verts; i++) {
-            if (final_projected_verts[i].x > 0.0) {
-                final_projected_verts[i].x -= 2.0;
-            }
+            final_projected_verts[i].x = (final_projected_verts[i].x > 0.0) ? final_projected_verts[i].x - 2.0 : final_projected_verts[i].x;
 
             world_position = final_world_positions[i];
             world_normal = final_world_normals[i];
@@ -199,11 +173,11 @@ void main() {
     
 }
 
-float min3 (vec3 v) {
+float min3(vec3 v) {
   return min(min(v.x, v.y), v.z);
 }
 
-float max3 (vec3 v) {
+float max3(vec3 v) {
   return max(max(v.x, v.y), v.z);
 }
 
@@ -218,7 +192,7 @@ vec4 equirectangular(vec3 vertex_position) {
     vec3 vertex_direction = vertex_position - camera_position;
     float magnitude = length(vertex_direction);
     float longitude = atan(vertex_direction.x, vertex_direction.z);
-    float latitude = atan(vertex_direction.y, length(vertex_direction.zx)); //asin(vertex_direction.y / magnitude);
+    float latitude = asin(vertex_direction.y / magnitude); //atan(vertex_direction.y, length(vertex_direction.zx));
 
     return vec4(-longitude / M_PI, 2.0 * latitude / M_PI, (magnitude - NEAR) / (FAR - NEAR), 1.0);
 }

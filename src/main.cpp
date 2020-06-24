@@ -63,6 +63,7 @@ void init(GLFWwindow *window, const char *scene_filename, App &app_ptr);
 void initializeScene(jsvar scene_desc, Scene &scene);
 void idle(GLFWwindow *window, App &app_ptr);
 void render(GLFWwindow *window, App &app_ptr);
+void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods);
 void loadShader(std::string shader_filename_base, App &app);
 GLint compileShader(char *source, int32_t length, GLenum type);
 GLuint createShaderProgram(GLuint shaders[], uint num_shaders);
@@ -97,7 +98,7 @@ int main(int argc, char **argv)
 
     // Make window's context current
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(0);
+    glfwSwapInterval(0); // disable v-sync for max frame rate measurements
 
     // Initialize GLAD OpenGL extension handling
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -105,11 +106,29 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    // User input callbacks
+    glfwSetKeyCallback(window, onKeyboard);
+
     // Main render loop
     App app;
     init(window, "resrc/scenes/sample_scene.json", app);
+
+    double previous_time = glfwGetTime();
+    int frame_count = 0;
     while (!glfwWindowShouldClose(window))
     {
+        // Measure speed
+        double current_time = glfwGetTime();
+        frame_count++;
+        // Print every 2 seconds
+        if (current_time - previous_time >= 2.0)
+        {
+            printf("%.3lf FPS\n", (double)frame_count / (current_time - previous_time));
+
+            frame_count = 0;
+            previous_time = current_time;
+        }
+
         glfwPollEvents();
         idle(window, app);
     }
@@ -271,6 +290,19 @@ void render(GLFWwindow *window, App &app)
     }
 
     glfwSwapBuffers(window);
+}
+
+void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+    if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+    {
+        uint8_t *pixels = new uint8_t[2160 * 1080 * 3];
+        glReadPixels(0, 0, 2160, 1080, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+        FILE *fp = fopen("equirect.ppm", "wb");
+        fprintf(fp, "P6\n2160 1080\n255\n");
+        fwrite(pixels, sizeof(uint8_t), 2160 * 1080 * 3, fp);
+        fclose(fp);
+    }
 }
 
 void loadShader(std::string shader_filename_base, App &app)
