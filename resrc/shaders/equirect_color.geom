@@ -11,6 +11,7 @@ layout(triangle_strip, max_vertices = 12) out;
 in vec3 world_normal_tese[];
 
 uniform vec3 camera_position;
+uniform float camera_offset;
 
 out vec3 world_position;
 out vec3 world_normal;
@@ -48,16 +49,26 @@ void main() {
     float min_lon = min3(lons);
     float max_lon = max3(lons);
 
+    // offset camera - assume looking directly at each vertex
+    vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 camera_position_v[3];
+    for (i = 0; i < 3; i++) {
+        vec3 dir = normalize(verts[i] - camera_position);
+        vec3 offset = camera_offset * cross(dir, up);
+        camera_position_v[i] = camera_position + offset;
+    }
+
     // determine if triangle covers N or S pole
-    vec3 v0_dir = vec3(verts[0].x - camera_position.x, 0.0, verts[0].z - camera_position.z);
-    vec3 v1_dir = vec3(verts[1].x - camera_position.x, 0.0, verts[1].z - camera_position.z);
-    vec3 v2_dir = vec3(verts[2].x - camera_position.x, 0.0, verts[2].z - camera_position.z);
+    vec3 v0_dir = vec3(verts[0].x - camera_position_v[0].x, 0.0, verts[0].z - camera_position_v[0].z);
+    vec3 v1_dir = vec3(verts[1].x - camera_position_v[1].x, 0.0, verts[1].z - camera_position_v[1].z);
+    vec3 v2_dir = vec3(verts[2].x - camera_position_v[2].x, 0.0, verts[2].z - camera_position_v[2].z);
     vec3 weights = barycentric(v0_dir, v1_dir, v2_dir, origin);
 
     // triangle covers N or S pole
+    //if (weights.x >= 0.0 && weights.y >= 0.0 && weights.z >= 0.0) {
     if (weights.x >= -EPSILON && weights.y >= -EPSILON && weights.z >= -EPSILON) {
         // determine N vs S pole (only looking at 1 vertex)
-        float projected_pole = sign(verts[0].y - camera_position.y);
+        float projected_pole = sign(verts[0].y - camera_position_v[0].y);
 
         // pole crosses through a vertex
         if (v0_dir == origin || v1_dir == origin || v2_dir == origin) {
@@ -189,7 +200,12 @@ void projectTriangle(vec3 verts[3], out vec4 projected_verts[3]) {
 }
 
 vec4 equirectangular(vec3 vertex_position) {
-    vec3 vertex_direction = vertex_position - camera_position;
+    vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 dir = normalize(vertex_position - camera_position);
+    vec3 offset = camera_offset * cross(dir, up);
+    vec3 cam = camera_position + offset;
+
+    vec3 vertex_direction = vertex_position - cam;
     float magnitude = length(vertex_direction);
     float longitude = atan(vertex_direction.x, vertex_direction.z);
     float latitude = asin(vertex_direction.y / magnitude); //atan(vertex_direction.y, length(vertex_direction.zx));
@@ -198,7 +214,12 @@ vec4 equirectangular(vec3 vertex_position) {
 }
 
 float projectedDistance(vec3 vertex_position) {
-    vec3 vertex_direction = vertex_position - camera_position;
+    vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 dir = normalize(vertex_position - camera_position);
+    vec3 offset = camera_offset * cross(dir, up);
+    vec3 cam = camera_position + offset;
+
+    vec3 vertex_direction = vertex_position - cam;
     float magnitude = length(vertex_direction);
     return (magnitude - NEAR) / (FAR - NEAR);
 }
@@ -210,6 +231,12 @@ vec3 lerp3D(vec3 v0, vec3 v1, vec3 v2, vec3 weights) {
 vec3 barycentric(vec3 v0, vec3 v1, vec3 v2, vec3 p) {
     vec3 ab = v1 - v0;
     vec3 ac = v2 - v0;
+
+    float triangle_area2 = length(cross(ab, ac));
+    if (triangle_area2 < EPSILON) {
+        return vec3(-1.0, -1.0, -1.0);
+    }
+
     vec3 ap = p - v0;
 
     float dbb = dot(ab, ab);

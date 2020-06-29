@@ -2,6 +2,8 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <fstream>
+#include <sstream>
 #include <vector>
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
@@ -12,9 +14,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/string_cast.hpp>
-#include "jsobject.hpp"
+//#include "jsobject.hpp"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+//#define OFFSCREEN
+#define CAMERA_OFFSET 0.0 //-0.0325
 
 enum ModelType : uint8_t {PLANE, CUBE, SPHERE};
 
@@ -30,7 +35,7 @@ typedef struct Object {
     glm::vec3 material_specular;
     GLfloat material_shininess;
     glm::vec3 center;
-    glm::vec3 size;
+    GLfloat size;
     GLfloat rotate_x;
     GLfloat rotate_y;
     GLfloat rotate_z;
@@ -39,18 +44,26 @@ typedef struct Object {
 typedef struct Scene {
     glm::vec3 camera_pos;
     std::vector<Object*> models;
+    //Model model;
     glm::vec3 ambient_light;
     int num_lights;
+    uint32_t num_points;
     GLfloat *light_positions;
     GLfloat *light_colors;
 } Scene;
 
 typedef struct App {
+    GLuint framebuffer;
+    GLuint framebuffer_texture;
+    int framebuffer_width;
+    int framebuffer_height;
     GLuint program;
     std::map<std::string,GLint> uniforms;
     GLuint vertex_position_attrib;
     GLuint vertex_normal_attrib;
     GLuint vertex_texcoord_attrib;
+    GLuint point_center_attrib;
+    GLuint point_color_attrib;
     Model plane_model;
     Model cube_model;
     Model sphere_model;
@@ -59,8 +72,9 @@ typedef struct App {
     Scene scene;
 } App;
 
-void init(GLFWwindow *window, const char *scene_filename, App &app_ptr);
-void initializeScene(jsvar scene_desc, Scene &scene);
+void init(GLFWwindow *window, int width, int height, const char *scene_filename, App &app_ptr);
+void initializeScene(const char *scene_filename, App &app);
+void initializeUniforms(App &app);
 void idle(GLFWwindow *window, App &app_ptr);
 void render(GLFWwindow *window, App &app_ptr);
 void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods);
@@ -73,6 +87,10 @@ int32_t readFile(const char* filename, char** data_ptr);
 GLuint createPlaneVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
 GLuint createCubeVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
 GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
+GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32_t num_points, GLuint position_attrib, GLuint normal_attrib,
+                           GLuint texcoord_attrib, GLuint point_center_attrib, GLuint point_color_attrib, GLuint *face_index_count);
+//void addSphereToModel(float x, float y, float z, float size, float red, float green, float blue, int slices, int stacks, int sphere_num, GLfloat *vertices, GLfloat *normals, GLfloat *colors, GLuint *indices);
+//GLuint createVertexArrayObject(int num_verts, int num_faces, GLuint position_attrib, GLuint normal_attrib, GLuint color_attrib, GLfloat *vertices, GLfloat *normals, GLfloat *colors, GLuint *indices);
 
 int main(int argc, char **argv)
 {
@@ -94,7 +112,11 @@ int main(int argc, char **argv)
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_SAMPLES, 4);
+#ifdef OFFSCREEN
+    GLFWwindow *window = glfwCreateWindow(128, 64, "OmniStereo", NULL, NULL);
+#else
     GLFWwindow *window = glfwCreateWindow(width, height, "OmniStereo", NULL, NULL);
+#endif
 
     // Make window's context current
     glfwMakeContextCurrent(window);
@@ -111,7 +133,8 @@ int main(int argc, char **argv)
 
     // Main render loop
     App app;
-    init(window, "resrc/scenes/sample_scene.json", app);
+    //init(window, width, height, "resrc/scenes/demo_scene.json", app);
+    init(window, width, height, "resrc/ScanLook_Vehicle07_scene.txt", app);
 
     double previous_time = glfwGetTime();
     int frame_count = 0;
@@ -140,23 +163,65 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void init(GLFWwindow *window, const char *scene_filename, App &app)
+void init(GLFWwindow *window, int width, int height, const char *scene_filename, App &app)
 {
+    // save pointer to `app`
+    glfwSetWindowUserPointer(window, &app);
+
     // Initialize OpenGL
+#ifdef OFFSCREEN
+    // texture to render into
+    glGenTextures(1, &(app.framebuffer_texture));
+    glBindTexture(GL_TEXTURE_2D, app.framebuffer_texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+    // depth buffer for offscreen framebuffer
+    GLuint framebuffer_depth;
+    glGenRenderbuffers(1, &framebuffer_depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, framebuffer_depth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+
+    // offscreen framebuffer
+    glGenFramebuffers(1, &(app.framebuffer));
+    glBindFramebuffer(GL_FRAMEBUFFER, app.framebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, app.framebuffer_texture, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, framebuffer_depth);
+
+    // set the list of draw buffers
+    GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, draw_buffers);
+
+    //GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    //std::cout << "FRAMEBUFFER STATUS: [" << status << "]" << std::endl;
+
+    // save framebuffer dimensions
+    app.framebuffer_width = width;
+    app.framebuffer_height = height;
+#else
+    // save framebuffer dimensions
     int w, h;
     glfwGetFramebufferSize(window, &w, &h);
+    app.framebuffer_width = w;
+    app.framebuffer_height = h;
+#endif
 
-    std::cout << "Framebuffer size: " << w << "x" << h << std::endl;
-
-    glViewport(0, 0, w, h);
-    glClearColor(0.9, 0.9, 0.9, 1.0);
+    std::cout << "Framebuffer size: " << app.framebuffer_width << "x" << app.framebuffer_height << std::endl;
+    
+    glViewport(0, 0, app.framebuffer_width, app.framebuffer_height);
+    glClearColor(0.68, 0.85, 0.95, 1.0);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
+    glPatchParameteri(GL_PATCH_VERTICES, 3);
 
     // Initialize application
     app.vertex_position_attrib = 0;
     app.vertex_normal_attrib = 1;
     app.vertex_texcoord_attrib = 2;
+    app.point_center_attrib = 3;
+    app.point_color_attrib = 4;
 
     app.plane_model.vertex_array = createPlaneVao(app.vertex_position_attrib, app.vertex_normal_attrib, app.vertex_texcoord_attrib, &(app.plane_model.face_index_count));
     app.cube_model.vertex_array = createCubeVao(app.vertex_position_attrib, app.vertex_normal_attrib, app.vertex_texcoord_attrib, &(app.cube_model.face_index_count));
@@ -166,65 +231,132 @@ void init(GLFWwindow *window, const char *scene_filename, App &app)
     std::cout << "Model [cube]: " << app.cube_model.face_index_count / 3 << " triangles" << std::endl;
     std::cout << "Model [sphere]: " << app.sphere_model.face_index_count / 3 << " triangles" << std::endl;
 
-    initializeScene(jsobject::parseFromFile(scene_filename), app.scene);
+    initializeScene(scene_filename, app);
+    //initializeScene(jsobject::parseFromFile(scene_filename), app.scene);
 
     loadShader("resrc/shaders/equirect_color", app);
+
+    initializeUniforms(app);
 }
 
-void initializeScene(jsvar scene_desc, Scene &scene)
+void initializeScene(const char *scene_filename, App &app)
 {
-    int i;
-    // Scene camera position
-    scene.camera_pos = glm::vec3(scene_desc["camera_position"][0],
-                                 scene_desc["camera_position"][1],
-                                 scene_desc["camera_position"][2]);
-    
-    // Scene models
-    for (i = 0; i < scene_desc["models"].length(); i++)
-    {
-        Object *model = new Object();
-        if ((std::string)scene_desc["models"][i]["type"] == "plane")
-            model->type = ModelType::PLANE;
-        else if ((std::string)scene_desc["models"][i]["type"] == "cube")
-            model->type = ModelType::CUBE;
-        else // (std::string)scene_desc["models"][i]["type"] == "sphere"
-            model->type = ModelType::SPHERE;
-        model->textured = scene_desc["models"][i]["textured"];
-        model->material_color = glm::vec3(scene_desc["models"][i]["material"]["color"][0],
-                                          scene_desc["models"][i]["material"]["color"][1],
-                                          scene_desc["models"][i]["material"]["color"][2]);
-        model->material_specular = glm::vec3(scene_desc["models"][i]["material"]["specular"][0],
-                                             scene_desc["models"][i]["material"]["specular"][1],
-                                             scene_desc["models"][i]["material"]["specular"][2]);
-        model->material_shininess = scene_desc["models"][i]["material"]["shininess"];
-        model->center = glm::vec3(scene_desc["models"][i]["center"][0],
-                                  scene_desc["models"][i]["center"][1],
-                                  scene_desc["models"][i]["center"][2]);
-        model->size = glm::vec3(scene_desc["models"][i]["size"][0],
-                                scene_desc["models"][i]["size"][1],
-                                scene_desc["models"][i]["size"][2]);
-        model->rotate_x = scene_desc["models"][i]["rotate_x"];
-        model->rotate_y = scene_desc["models"][i]["rotate_y"];
-        model->rotate_z = scene_desc["models"][i]["rotate_z"];
-        scene.models.push_back(model);
-    }
+    const int NONE = -1;
+    const int CAMERA = 0;
+    const int LIGHTS = 1;
+    const int POINTS = 2;
 
-    // Scene lights
-    scene.ambient_light = glm::vec3(scene_desc["light"]["ambient"][0],
-                                    scene_desc["light"]["ambient"][1],
-                                    scene_desc["light"]["ambient"][2]);
-    scene.num_lights = scene_desc["light"]["point_lights"].length();
-    scene.light_positions = new GLfloat[3 * scene.num_lights];
-    scene.light_colors = new GLfloat[3 * scene.num_lights];
-    for (i = 0; i < scene.num_lights; i++)
+    std::cout << "Reading scene file" << std::endl;
+
+    std::ifstream scene_file(scene_filename);
+    std::string line;
+    int section = NONE;
+    int light_count, point_count, light_idx = 0, point_idx = 0;
+    GLfloat *point_centers, *point_colors;
+    float x, y, z, size, red, green, blue;
+    while (std::getline(scene_file, line))
     {
-        scene.light_positions[3 * i] = scene_desc["light"]["point_lights"][i]["position"][0];
-        scene.light_positions[3 * i + 1] = scene_desc["light"]["point_lights"][i]["position"][1];
-        scene.light_positions[3 * i + 2] = scene_desc["light"]["point_lights"][i]["position"][2];
-        scene.light_colors[3 * i] = scene_desc["light"]["point_lights"][i]["color"][0];
-        scene.light_colors[3 * i + 1] = scene_desc["light"]["point_lights"][i]["color"][1];
-        scene.light_colors[3 * i + 2] = scene_desc["light"]["point_lights"][i]["color"][2];
+        // start of camera data
+        if (line.length() > 0 && line[0] == 'c')
+        {
+            section = CAMERA;
+        }
+        // start of lights data
+        else if (line.length() > 0 && line[0] == 'l')
+        {
+            std::istringstream iss(line);
+            std::string name;
+            iss >> name >> light_count;
+            app.scene.ambient_light = glm::vec3(0.25, 0.25, 0.25);
+            app.scene.num_lights = light_count;
+            app.scene.light_positions = new GLfloat[3 * app.scene.num_lights];
+            app.scene.light_colors = new GLfloat[3 * app.scene.num_lights];
+            section = LIGHTS;
+        }
+        // start of points data
+        else if (line.length() > 0 && line[0] == 'p')
+        {
+            std::istringstream iss(line);
+            std::string name;
+            iss >> name >> point_count;
+            app.scene.num_points = (point_count-1) / 100 + 1;
+            //point_centers = new GLfloat[3 * app.scene.num_points];
+            //point_colors = new GLfloat[3 * app.scene.num_points];
+            section = POINTS;
+        }
+        // camera data
+        else if (line.length() > 0 && line[0] != '#' && section == CAMERA)
+        {
+            std::istringstream iss(line);
+            iss >> x >> y >> z;
+            app.scene.camera_pos = glm::vec3(x, y, z);
+        }
+        // light data
+        else if (line.length() > 0 && line[0] != '#' && section == LIGHTS)
+        {
+            std::istringstream iss(line);
+            iss >> x >> y >> z >> red >> green >> blue;
+            app.scene.light_positions[3 * light_idx] = x;
+            app.scene.light_positions[3 * light_idx + 1] = y;
+            app.scene.light_positions[3 * light_idx + 2] = z;
+            app.scene.light_colors[3 * light_idx] = red;
+            app.scene.light_colors[3 * light_idx + 1] = green;
+            app.scene.light_colors[3 * light_idx + 2] = blue;
+            light_idx++;
+        }
+        // point data
+        else if (line.length() > 0 && line[0] != '#' && section == POINTS)
+        {
+            std::istringstream iss(line);
+            iss >> x >> y >> z >> size >> red >> green >> blue;
+            /*if (point_idx % 100 == 0)
+            {
+                //if (point_idx >= app.scene.num_points) std::cout << "Oops - exceeded point count" << std::endl;
+                point_centers[3 * point_idx/100] = x;
+                point_centers[3 * point_idx/100 + 1] = y;
+                point_centers[3 * point_idx/100 + 2] = z;
+                point_colors[3 * point_idx/100] = red;
+                point_colors[3 * point_idx/100 + 1] = green;
+                point_colors[3 * point_idx/100 + 2] = blue;
+            }
+            point_idx++;*/
+            if (point_idx % 100 == 0)
+            {
+                Object *model = new Object();
+                model->type = ModelType::SPHERE;
+                model->textured = false;
+                model->material_color = glm::vec3(red, green, blue);
+                model->material_specular = glm::vec3(1.0, 1.0, 1.0);
+                model->material_shininess = 64.0;
+                model->center = glm::vec3(x, y, z);
+                model->size = size;
+                model->rotate_x = 0.0;
+                model->rotate_y = 0.0;
+                model->rotate_z = 0.0;
+                app.scene.models.push_back(model);
+            }
+            point_idx++;
+        }
     }
+    //std::cout << point_idx/100 << "/" << app.scene.num_points << std::endl;
+    //app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, app.scene.num_points, app.vertex_position_attrib,
+    //    app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, &(app.scene.model.face_index_count));
+
+    std::cout << "Finished" << std::endl;
+}
+
+void initializeUniforms(App &app)
+{
+    glUseProgram(app.program);
+
+    glUniform1i(app.uniforms["num_lights"], app.scene.num_lights);
+    glUniform3fv(app.uniforms["light_ambient"], 1, glm::value_ptr(app.scene.ambient_light));
+    glUniform3fv(app.uniforms["light_position[0]"], app.scene.num_lights, app.scene.light_positions);
+    glUniform3fv(app.uniforms["light_color[0]"], app.scene.num_lights, app.scene.light_colors);
+    glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
+    glUniform1f(app.uniforms["camera_offset"], CAMERA_OFFSET);
+
+    glUseProgram(0);
 }
 
 void idle(GLFWwindow *window, App &app)
@@ -239,31 +371,33 @@ void render(GLFWwindow *window, App &app)
     // Delete previous frame (reset both framebuffer and z-buffer)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
+    // Select shader program to use
+    glUseProgram(app.program);
+    
     // Draw all models
     for (i = 0; i < app.scene.models.size(); i++)
     {
-        // Select shader program to use
-        glUseProgram(app.program);
-
-        // Transform model to proper position, size, and orientation
-        app.mat_model = glm::translate(glm::mat4(1.0), app.scene.models[i]->center);
-        app.mat_model = glm::rotate(app.mat_model, glm::radians(app.scene.models[i]->rotate_z), glm::vec3(0.0, 0.0, 1.0));
-        app.mat_model = glm::rotate(app.mat_model, glm::radians(app.scene.models[i]->rotate_y), glm::vec3(0.0, 1.0, 0.0));
-        app.mat_model = glm::rotate(app.mat_model, glm::radians(app.scene.models[i]->rotate_x), glm::vec3(1.0, 0.0, 0.0));
-        app.mat_model = glm::scale(app.mat_model, app.scene.models[i]->size);
-
-        // Create normal matrix (based off of model matrix)
-        app.mat_normal = glm::inverse(app.mat_model);
-        app.mat_normal = glm::transpose(app.mat_normal);
-
+        /*
         // Upload values to shader uniform variables
-        glUniformMatrix4fv(app.uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat_model));
-        glUniformMatrix3fv(app.uniforms["normal_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat_normal));
         glUniform1i(app.uniforms["num_lights"], app.scene.num_lights);
         glUniform3fv(app.uniforms["light_ambient"], 1, glm::value_ptr(app.scene.ambient_light));
         glUniform3fv(app.uniforms["light_position[0]"], app.scene.num_lights, app.scene.light_positions);
         glUniform3fv(app.uniforms["light_color[0]"], app.scene.num_lights, app.scene.light_colors);
         glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
+        glUniform1f(app.uniforms["camera_offset"], CAMERA_OFFSET);
+
+        glBindVertexArray(app.scene.model.vertex_array);
+        glPatchParameteri(GL_PATCH_VERTICES, 3);
+        glDrawElementsInstanced(GL_PATCHES, app.scene.model.face_index_count, GL_UNSIGNED_SHORT, 0, app.scene.num_points);
+        //glDrawElements(GL_PATCHES, app.scene.model.face_index_count, GL_UNSIGNED_SHORT, 0);
+        glBindVertexArray(0);
+        */
+        
+        
+        // Upload values to shader uniform variables per model
+        glUniform3fv(app.uniforms["model_center"], 1, glm::value_ptr(app.scene.models[i]->center));
+        glUniform1f(app.uniforms["model_size"], app.scene.models[i]->size);
         glUniform3fv(app.uniforms["material_color"], 1, glm::value_ptr(app.scene.models[i]->material_color));
         glUniform3fv(app.uniforms["material_specular"], 1, glm::value_ptr(app.scene.models[i]->material_specular));
         glUniform1f(app.uniforms["material_shininess"], app.scene.models[i]->material_shininess);
@@ -283,24 +417,33 @@ void render(GLFWwindow *window, App &app)
                 break;
         }
         glBindVertexArray(model->vertex_array);
-        //glDrawElements(GL_TRIANGLES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
-        glPatchParameteri(GL_PATCH_VERTICES, 3);
         glDrawElements(GL_PATCHES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
         glBindVertexArray(0);
     }
+
+    glUseProgram(0);
 
     glfwSwapBuffers(window);
 }
 
 void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
+    App *app_ptr = (App*)glfwGetWindowUserPointer(window);
+
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
-        uint8_t *pixels = new uint8_t[2160 * 1080 * 3];
-        glReadPixels(0, 0, 2160, 1080, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+        uint8_t *pixels = new uint8_t[app_ptr->framebuffer_width * app_ptr->framebuffer_height * 3];
+#ifdef OFFSCREEN
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+#else
+        glReadPixels(0, 0, app_ptr->framebuffer_width, app_ptr->framebuffer_height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+#endif
+        int i;
         FILE *fp = fopen("equirect.ppm", "wb");
-        fprintf(fp, "P6\n2160 1080\n255\n");
-        fwrite(pixels, sizeof(uint8_t), 2160 * 1080 * 3, fp);
+        fprintf(fp, "P6\n%d %d\n255\n", app_ptr->framebuffer_width, app_ptr->framebuffer_height);
+        for (i = app_ptr->framebuffer_height - 1; i >= 0; i --) {
+            fwrite(pixels + (i * app_ptr->framebuffer_width * 3), sizeof(uint8_t), app_ptr->framebuffer_width * 3, fp);
+        }
         fclose(fp);
     }
 }
@@ -339,6 +482,8 @@ void loadShader(std::string shader_filename_base, App &app)
     glBindAttribLocation(app.program, app.vertex_position_attrib, "vertex_position");
     glBindAttribLocation(app.program, app.vertex_normal_attrib, "vertex_normal");
     glBindAttribLocation(app.program, app.vertex_texcoord_attrib, "vertex_texcoord");
+    glBindAttribLocation(app.program, app.point_center_attrib, "point_center");
+    glBindAttribLocation(app.program, app.point_color_attrib, "point_color");
     glBindFragDataLocation(app.program, 0, "FragColor");
 
     // Link compiled GPU program
@@ -549,7 +694,7 @@ GLuint createPlaneVao(GLuint position_attrib, GLuint normal_attrib, GLuint texco
     // Enable texcoord_attrib in our GPU program
     glEnableVertexAttribArray(texcoord_attrib);
     // Attach vertex_texcoord_buffer to the texcoord_attrib
-    // (as 3-component floating point values)
+    // (as 2-component floating point values)
     glVertexAttribPointer(texcoord_attrib, 2, GL_FLOAT, false, 0, 0);
 
     // Create buffer to store faces of the triangle
@@ -733,7 +878,7 @@ GLuint createCubeVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoo
     // Enable texcoord_attrib in our GPU program
     glEnableVertexAttribArray(texcoord_attrib);
     // Attach vertex_texcoord_buffer to the texcoord_attrib
-    // (as 3-component floating point values)
+    // (as 2-component floating point values)
     glVertexAttribPointer(texcoord_attrib, 2, GL_FLOAT, false, 0, 0);
 
     // Create buffer to store faces of the triangle
@@ -773,8 +918,8 @@ GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texc
 
     // Calculate vertices, normals, texture coordinate, and faces
     int i, j;
-    int slices = 36;
-    int stacks = 18;
+    int slices = 24;
+    int stacks = 12;
     int num_verts = (slices + 1) * (stacks + 1);
     int num_faces = 2 * slices * stacks;
     int vert_idx = 0;
@@ -862,7 +1007,7 @@ GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texc
     // Enable texcoord_attrib in our GPU program
     glEnableVertexAttribArray(texcoord_attrib);
     // Attach vertex_texcoord_buffer to the texcoord_attrib
-    // (as 3-component floating point values)
+    // (as 2-component floating point values)
     glVertexAttribPointer(texcoord_attrib, 2, GL_FLOAT, false, 0, 0);
 
     // Create buffer to store faces of the triangle
@@ -888,3 +1033,286 @@ GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texc
     // Return created Vertex Array Object
     return vertex_array;
 }
+
+GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32_t num_points, GLuint position_attrib, GLuint normal_attrib,
+                           GLuint texcoord_attrib, GLuint point_center_attrib, GLuint point_color_attrib, GLuint *face_index_count)
+{
+    // Create a new Vertex Array Object
+    GLuint vertex_array;
+    glGenVertexArrays(1, &vertex_array);
+    // Set newly created Vertex Array Object as the active one we are modifying
+    glBindVertexArray(vertex_array);
+
+    // Calculate vertices, normals, texture coordinate, and faces
+    int i, j;
+    int slices = 24;
+    int stacks = 12;
+    int num_verts = (slices + 1) * (stacks + 1);
+    int num_faces = 2 * slices * stacks;
+    int vert_idx = 0;
+    int face_idx = 0;
+    double phi = 0;
+    double delta_phi = 2.0 * M_PI / (double)slices;
+    double delta_theta = -M_PI / (double)stacks;
+    GLfloat *vertices = new GLfloat[num_verts * 3];
+    GLfloat *normals = new GLfloat[num_verts * 3];
+    GLfloat *texcoords = new GLfloat[num_verts * 2];
+    for (i = 0; i <= slices; i++) {
+        double cos_phi = cos(phi);
+        double sin_phi = sin(phi);
+        double theta = M_PI / 2.0;
+        for (j = 0; j <= stacks; j++) {
+            double cos_theta = cos(theta);
+            double sin_theta = sin(theta);
+            double x = cos_theta * cos_phi;
+            double y = sin_theta;
+            double z = cos_theta * -sin_phi;
+            vertices[3 * vert_idx] = x / 2.0;
+            vertices[3 * vert_idx + 1] = y / 2.0;
+            vertices[3 * vert_idx + 2] = z / 2.0;
+            normals[3 * vert_idx] = x;
+            normals[3 * vert_idx + 1] = y;
+            normals[3 * vert_idx + 2] = z;
+            texcoords[2 * vert_idx] = (double)i / (double)slices;
+            texcoords[2 * vert_idx + 1] = 1.0 - (double)j / (double)stacks;
+            theta += delta_theta;
+            vert_idx++;
+        }
+        phi += delta_phi;
+    }
+    GLushort *indices = new GLushort[num_faces * 3];
+    for (i = 0; i < slices; i++) {
+        int k1 = i * (stacks + 1);
+        int k2 = (i + 1) * (stacks + 1);
+        for (j = 0; j < stacks; j++) {
+            indices[3 * face_idx] = k1;
+            indices[3 * face_idx + 1] = k1 + 1;
+            indices[3 * face_idx + 2] = k2;
+            face_idx++;
+            indices[3 * face_idx] = k1 + 1;
+            indices[3 * face_idx + 1] = k2 + 1;
+            indices[3 * face_idx + 2] = k2;
+            face_idx++;
+            k1++;
+            k2++;
+        }
+    }
+
+    // Create buffer to store vertex positions (3D points)
+    GLuint vertex_position_buffer;
+    glGenBuffers(1, &vertex_position_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_position_buffer);
+    // Store array of vertex positions in the vertex_position_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_verts * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    // Enable position_attrib in our GPU program
+    glEnableVertexAttribArray(position_attrib);
+    // Attach vertex_position_buffer to the position_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(position_attrib, 3, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store vertex normals (vector pointing perpendicular to surface)
+    GLuint vertex_normal_buffer;
+    glGenBuffers(1, &vertex_normal_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_normal_buffer);
+    // Store array of vertex normals in the vertex_normal_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_verts * sizeof(GLfloat), normals, GL_STATIC_DRAW);
+    // Enable normal_attrib in our GPU program
+    glEnableVertexAttribArray(normal_attrib);
+    // Attach vertex_normal_buffer to the normal_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(normal_attrib, 3, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store texture coordinates (2D coordinates for mapping images to the surface)
+    GLuint vertex_texcoord_buffer;
+    glGenBuffers(1, &vertex_texcoord_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_texcoord_buffer);
+    // Store array of vertex texture coordinates in the vertex_texcoord_buffer
+    glBufferData(GL_ARRAY_BUFFER, 2 * num_verts * sizeof(GLfloat), texcoords, GL_STATIC_DRAW);
+    // Enable texcoord_attrib in our GPU program
+    glEnableVertexAttribArray(texcoord_attrib);
+    // Attach vertex_texcoord_buffer to the texcoord_attrib
+    // (as 2-component floating point values)
+    glVertexAttribPointer(texcoord_attrib, 2, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store faces of the triangle
+    GLuint vertex_index_buffer;
+    glGenBuffers(1, &vertex_index_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertex_index_buffer);
+    // Store array of vertex indices in the vertex_index_buffer
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * num_faces * sizeof(GLushort), indices, GL_STATIC_DRAW);
+
+
+    // Point cloud data
+    // Create buffer to store point center positions
+    GLuint point_center_buffer;
+    glGenBuffers(1, &point_center_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, point_center_buffer);
+    // Store array of point centers in the point_center_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_points * sizeof(GLfloat), point_centers, GL_STATIC_DRAW);
+    // Enable point_center_attrib in our GPU program
+    glEnableVertexAttribArray(point_center_attrib);
+    // Attach point_center_buffer to the point_center_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(point_center_attrib, 3, GL_FLOAT, false, 0, 0);
+    // advance one vertex attribute per instance
+    glVertexAttribDivisor(point_center_attrib, 1);
+
+    // Create buffer to store point colors
+    GLuint point_color_buffer;
+    glGenBuffers(1, &point_color_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, point_color_buffer);
+    // Store array of point colors in the point_color_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_points * sizeof(GLfloat), point_colors, GL_STATIC_DRAW);
+    // Enable point_color_attrib in our GPU program
+    glEnableVertexAttribArray(point_color_attrib);
+    // Attach point_color_buffer to the point_color_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(point_color_attrib, 3, GL_FLOAT, false, 0, 0);
+    // advance one vertex attribute per instance
+    glVertexAttribDivisor(point_color_attrib, 1);
+
+
+    // No longer modifying our Vertex Array Object, so deselect
+    glBindVertexArray(0);
+
+    // Delete arrays
+    delete[] vertices;
+    delete[] normals;
+    delete[] texcoords;
+    delete[] indices;
+
+    // Store the number of vertices used for entire model (number of faces * 3)
+    *face_index_count = 3 * num_faces;
+
+    // Return created Vertex Array Object
+    return vertex_array;
+}
+
+/*
+void addSphereToModel(float cx, float cy, float cz, float size, float red, float green, float blue, int slices, int stacks, int sphere_num, GLfloat *vertices, GLfloat *normals, GLfloat *colors, GLuint *indices)
+{
+    int i, j;
+    int num_verts = (slices + 1) * (stacks + 1);
+    int num_faces = 2 * slices * stacks;
+    int vert_offset = num_verts * 3 * sphere_num;
+    int face_offset = num_faces * 3 * sphere_num;
+    int vert_idx = 0;
+    int face_idx = 0;
+    double phi = 0;
+    double delta_phi = 2.0 * M_PI / (double)slices;
+    double delta_theta = -M_PI / (double)stacks;
+
+    for (i = 0; i <= slices; i++) {
+        double cos_phi = cos(phi);
+        double sin_phi = sin(phi);
+        double theta = M_PI / 2.0;
+        for (j = 0; j <= stacks; j++) {
+            double cos_theta = cos(theta);
+            double sin_theta = sin(theta);
+            double x = cos_theta * cos_phi;
+            double y = sin_theta;
+            double z = cos_theta * -sin_phi;
+            vertices[vert_offset + 3 * vert_idx] = (x / 2.0) * size + cx;
+            vertices[vert_offset + 3 * vert_idx + 1] = (y / 2.0) * size + cy;
+            vertices[vert_offset + 3 * vert_idx + 2] = (z / 2.0) * size + cz;
+            normals[vert_offset + 3 * vert_idx] = x;
+            normals[vert_offset + 3 * vert_idx + 1] = y;
+            normals[vert_offset + 3 * vert_idx + 2] = z;
+            colors[vert_offset + 3 * vert_idx] = red;
+            colors[vert_offset + 3 * vert_idx + 1] = green;
+            colors[vert_offset + 3 * vert_idx + 2] = blue;
+            //texcoords[2 * vert_idx] = (double)i / (double)slices;
+            //texcoords[2 * vert_idx + 1] = 1.0 - (double)j / (double)stacks;
+            theta += delta_theta;
+            vert_idx++;
+        }
+        phi += delta_phi;
+    }
+    for (i = 0; i < slices; i++) {
+        int k1 = (vert_offset / 3) + i * (stacks + 1);
+        int k2 = (vert_offset / 3) + (i + 1) * (stacks + 1);
+        for (j = 0; j < stacks; j++) {
+            indices[face_offset + 3 * face_idx] = k1;
+            indices[face_offset + 3 * face_idx + 1] = k1 + 1;
+            indices[face_offset + 3 * face_idx + 2] = k2;
+            face_idx++;
+            indices[face_offset + 3 * face_idx] = k1 + 1;
+            indices[face_offset + 3 * face_idx + 1] = k2 + 1;
+            indices[face_offset + 3 * face_idx + 2] = k2;
+            face_idx++;
+            k1++;
+            k2++;
+
+
+        }
+    }
+}
+
+GLuint createVertexArrayObject(int num_verts, int num_faces, GLuint position_attrib, GLuint normal_attrib, GLuint color_attrib, GLfloat *vertices, GLfloat *normals, GLfloat *colors, GLuint *indices)
+{
+    // Create a new Vertex Array Object
+    GLuint vertex_array;
+    glGenVertexArrays(1, &vertex_array);
+    // Set newly created Vertex Array Object as the active one we are modifying
+    glBindVertexArray(vertex_array);
+
+    // Create buffer to store vertex positions (3D points)
+    GLuint vertex_position_buffer;
+    glGenBuffers(1, &vertex_position_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_position_buffer);
+    // Store array of vertex positions in the vertex_position_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_verts * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    // Enable position_attrib in our GPU program
+    glEnableVertexAttribArray(position_attrib);
+    // Attach vertex_position_buffer to the position_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(position_attrib, 3, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store vertex normals (vector pointing perpendicular to surface)
+    GLuint vertex_normal_buffer;
+    glGenBuffers(1, &vertex_normal_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_normal_buffer);
+    // Store array of vertex normals in the vertex_normal_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_verts * sizeof(GLfloat), normals, GL_STATIC_DRAW);
+    // Enable normal_attrib in our GPU program
+    glEnableVertexAttribArray(normal_attrib);
+    // Attach vertex_normal_buffer to the normal_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(normal_attrib, 3, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store colors (RGB)
+    GLuint vertex_color_buffer;
+    glGenBuffers(1, &vertex_color_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_color_buffer);
+    // Store array of vertex texture coordinates in the vertex_color_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_verts * sizeof(GLfloat), colors, GL_STATIC_DRAW);
+    // Enable color_attrib in our GPU program
+    glEnableVertexAttribArray(color_attrib);
+    // Attach vertex_color_buffer to the color_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(color_attrib, 3, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store faces of the triangle
+    GLuint vertex_index_buffer;
+    glGenBuffers(1, &vertex_index_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertex_index_buffer);
+    // Store array of vertex indices in the vertex_index_buffer
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * num_faces * sizeof(GLuint), indices, GL_STATIC_DRAW);
+
+    // No longer modifying our Vertex Array Object, so deselect
+    glBindVertexArray(0);
+
+    // Return created Vertex Array Object
+    return vertex_array;
+}
+*/
