@@ -18,7 +18,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#define OFFSCREEN
+//#define OFFSCREEN
 //#define CAMERA_OFFSET 0.0 //-0.0325
 
 enum ModelType : uint8_t {PLANE, CUBE, SPHERE};
@@ -43,8 +43,8 @@ typedef struct Object {
 
 typedef struct Scene {
     glm::vec3 camera_pos;
-    //std::vector<Object*> models;
-    Model model;
+    std::vector<Object*> models;
+    //Model model;
     glm::vec3 ambient_light;
     int num_lights;
     uint32_t num_points;
@@ -145,10 +145,11 @@ int main(int argc, char **argv)
     double previous_time = glfwGetTime();
     int frame_count = 0;
     render(window, app);
-    while (!glfwWindowShouldClose(window) && frame_idx < 600)
+    //while (!glfwWindowShouldClose(window) && frame_idx < 600)
+    while (!glfwWindowShouldClose(window))
     {
         // Save image
-        saveImage(output_filename, app.framebuffer_width, app.framebuffer_height);
+        //saveImage(output_filename, app.framebuffer_width, app.framebuffer_height);
 
         // Measure speed
         double current_time = glfwGetTime();
@@ -166,7 +167,7 @@ int main(int argc, char **argv)
         idle(window, app);
 
         frame_idx++;
-        sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
+        //sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
     }
 
     // clean up
@@ -227,6 +228,9 @@ void init(GLFWwindow *window, int width, int height, float camera_offset, const 
     glClearColor(0.68, 0.85, 0.95, 1.0);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
     glPatchParameteri(GL_PATCH_VERTICES, 3);
 
     // Initialize application
@@ -267,7 +271,7 @@ void initializeScene(const char *scene_filename, App &app)
     int light_count, point_count, light_idx = 0, point_idx = 0;
     GLfloat *point_centers, *point_colors;
     float x, y, z, size, red, green, blue;
-    int skip = 10000;
+    int skip = 1000;
     while (std::getline(scene_file, line))
     {
         // start of camera data
@@ -323,7 +327,7 @@ void initializeScene(const char *scene_filename, App &app)
         {
             std::istringstream iss(line);
             iss >> x >> y >> z >> size >> red >> green >> blue;
-            
+            /*
             if (point_idx % skip == 0)
             {
                 //if (point_idx >= app.scene.num_points) std::cout << "Oops - exceeded point count" << std::endl;
@@ -335,8 +339,9 @@ void initializeScene(const char *scene_filename, App &app)
                 point_colors[3 * (point_idx / skip) + 2] = blue;
             }
             point_idx++;
-            /*
-            if (point_idx % 10 == 0)
+            */
+            
+            if (point_idx % skip == 0)
             {
                 Object *model = new Object();
                 model->type = ModelType::SPHERE;
@@ -352,12 +357,14 @@ void initializeScene(const char *scene_filename, App &app)
                 app.scene.models.push_back(model);
             }
             point_idx++;
-            */
+            
         }
     }
-    std::cout << point_idx / skip << "/" << app.scene.num_points << std::endl;
-    app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, app.scene.num_points, app.vertex_position_attrib,
-        app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, &(app.scene.model.face_index_count));
+    //std::cout << point_idx / skip << "/" << app.scene.num_points << std::endl;
+    //app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, app.scene.num_points, app.vertex_position_attrib,
+    //    app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, &(app.scene.model.face_index_count));
+    delete[] point_centers;
+    delete[] point_colors;
 
     std::cout << "Finished" << std::endl;
 
@@ -404,20 +411,21 @@ void render(GLFWwindow *window, App &app)
     // Upload dynamic values to shader uniform variables
     glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
     // Render
+    /*
     glBindVertexArray(app.scene.model.vertex_array);
     glPatchParameteri(GL_PATCH_VERTICES, 3);
     glDrawElementsInstanced(GL_PATCHES, app.scene.model.face_index_count, GL_UNSIGNED_SHORT, 0, app.scene.num_points);
     glBindVertexArray(0);
-
-    /*
+    */
+    
     for (i = 0; i < app.scene.models.size(); i++)
     {
         // Upload values to shader uniform variables per model
         glUniform3fv(app.uniforms["model_center"], 1, glm::value_ptr(app.scene.models[i]->center));
         glUniform1f(app.uniforms["model_size"], app.scene.models[i]->size);
         glUniform3fv(app.uniforms["material_color"], 1, glm::value_ptr(app.scene.models[i]->material_color));
-        glUniform3fv(app.uniforms["material_specular"], 1, glm::value_ptr(app.scene.models[i]->material_specular));
-        glUniform1f(app.uniforms["material_shininess"], app.scene.models[i]->material_shininess);
+        //glUniform3fv(app.uniforms["material_specular"], 1, glm::value_ptr(app.scene.models[i]->material_specular));
+        //glUniform1f(app.uniforms["material_shininess"], app.scene.models[i]->material_shininess);
 
         // Render model
         Model *model;
@@ -437,7 +445,7 @@ void render(GLFWwindow *window, App &app)
         glDrawElements(GL_PATCHES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
         glBindVertexArray(0);
     }
-    */
+    
 
     glUseProgram(0);
 
@@ -942,8 +950,8 @@ GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texc
 
     // Calculate vertices, normals, texture coordinate, and faces
     int i, j;
-    int slices = 24;
-    int stacks = 12;
+    int slices = 14;
+    int stacks = 7;
     int num_verts = (slices + 1) * (stacks + 1);
     int num_faces = 2 * slices * stacks;
     int vert_idx = 0;
@@ -1069,8 +1077,8 @@ GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32
 
     // Calculate vertices, normals, texture coordinate, and faces
     int i, j;
-    int slices = 24;
-    int stacks = 12;
+    int slices = 14;
+    int stacks = 7;
     int num_verts = (slices + 1) * (stacks + 1);
     int num_faces = 2 * slices * stacks;
     int vert_idx = 0;

@@ -9,7 +9,7 @@ uniform vec3 light_ambient;
 uniform vec3 light_position[10];
 uniform vec3 light_color[10];
 uniform vec3 camera_position;
-//uniform vec3 material_color;      // Ka and Kd
+uniform vec3 material_color;      // Ka and Kd
 //uniform vec3 material_specular;   // Ks
 //uniform float material_shininess; // n
 
@@ -38,8 +38,8 @@ void main() {
     light_diffuse = min(light_diffuse, 1.0);
     light_specular = min(light_specular, 1.0);
 
-    //vec3 final_color = min((light_ambient * material_color) + (light_diffuse * material_color) + (light_specular * material_specular), 1.0);
-    vec3 final_color = min((light_ambient * model_color) + (light_diffuse * model_color) + (light_specular * material_specular), 1.0);
+    vec3 final_color = min((light_ambient * material_color) + (light_diffuse * material_color) + (light_specular * material_specular), 1.0);
+    //vec3 final_color = min((light_ambient * model_color) + (light_diffuse * model_color) + (light_specular * material_specular), 1.0);
 
     FragColor = vec4(final_color, 1.0);
 }
