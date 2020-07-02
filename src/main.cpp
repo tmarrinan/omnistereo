@@ -18,8 +18,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-//#define OFFSCREEN
-#define CAMERA_OFFSET 0.0 //-0.0325
+#define OFFSCREEN
+//#define CAMERA_OFFSET 0.0 //-0.0325
 
 enum ModelType : uint8_t {PLANE, CUBE, SPHERE};
 
@@ -43,8 +43,8 @@ typedef struct Object {
 
 typedef struct Scene {
     glm::vec3 camera_pos;
-    std::vector<Object*> models;
-    //Model model;
+    //std::vector<Object*> models;
+    Model model;
     glm::vec3 ambient_light;
     int num_lights;
     uint32_t num_points;
@@ -72,12 +72,13 @@ typedef struct App {
     Scene scene;
 } App;
 
-void init(GLFWwindow *window, int width, int height, const char *scene_filename, App &app_ptr);
+void init(GLFWwindow *window, int width, int height, float camera_offset, const char *scene_filename, App &app_ptr);
 void initializeScene(const char *scene_filename, App &app);
-void initializeUniforms(App &app);
+void initializeUniforms(float camera_offset, App &app);
 void idle(GLFWwindow *window, App &app_ptr);
 void render(GLFWwindow *window, App &app_ptr);
 void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods);
+void saveImage(const char *filename, int framebuffer_width, int framebuffer_height);
 void loadShader(std::string shader_filename_base, App &app);
 GLint compileShader(char *source, int32_t length, GLenum type);
 GLuint createShaderProgram(GLuint shaders[], uint num_shaders);
@@ -97,8 +98,10 @@ int main(int argc, char **argv)
     // Read command line parameters for overall width / height
     int width = 1440;
     int height = 720;
+    float camera_offset = 0.0f;
     if (argc >= 2) width = std::stoi(argv[1]);
     if (argc >= 3) height = std::stoi(argv[2]);
+    if (argc >= 4) camera_offset = std::stof(argv[3]);
 
     // Initialize GLFW
     if (!glfwInit())
@@ -134,12 +137,19 @@ int main(int argc, char **argv)
     // Main render loop
     App app;
     //init(window, width, height, "resrc/scenes/demo_scene.json", app);
-    init(window, width, height, "resrc/ScanLook_Vehicle07_scene.txt", app);
+    init(window, width, height, camera_offset, "resrc/ScanLook_Vehicle07_scene.txt", app);
 
+    int frame_idx = 1;
+    char output_filename[128];
+    sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
     double previous_time = glfwGetTime();
     int frame_count = 0;
-    while (!glfwWindowShouldClose(window))
+    render(window, app);
+    while (!glfwWindowShouldClose(window) && frame_idx < 600)
     {
+        // Save image
+        saveImage(output_filename, app.framebuffer_width, app.framebuffer_height);
+
         // Measure speed
         double current_time = glfwGetTime();
         frame_count++;
@@ -154,6 +164,9 @@ int main(int argc, char **argv)
 
         glfwPollEvents();
         idle(window, app);
+
+        frame_idx++;
+        sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
     }
 
     // clean up
@@ -163,7 +176,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void init(GLFWwindow *window, int width, int height, const char *scene_filename, App &app)
+void init(GLFWwindow *window, int width, int height, float camera_offset, const char *scene_filename, App &app)
 {
     // save pointer to `app`
     glfwSetWindowUserPointer(window, &app);
@@ -236,7 +249,7 @@ void init(GLFWwindow *window, int width, int height, const char *scene_filename,
 
     loadShader("resrc/shaders/equirect_color", app);
 
-    initializeUniforms(app);
+    initializeUniforms(camera_offset, app);
 }
 
 void initializeScene(const char *scene_filename, App &app)
@@ -254,6 +267,7 @@ void initializeScene(const char *scene_filename, App &app)
     int light_count, point_count, light_idx = 0, point_idx = 0;
     GLfloat *point_centers, *point_colors;
     float x, y, z, size, red, green, blue;
+    int skip = 10000;
     while (std::getline(scene_file, line))
     {
         // start of camera data
@@ -279,9 +293,9 @@ void initializeScene(const char *scene_filename, App &app)
             std::istringstream iss(line);
             std::string name;
             iss >> name >> point_count;
-            app.scene.num_points = (point_count-1) / 100 + 1;
-            //point_centers = new GLfloat[3 * app.scene.num_points];
-            //point_colors = new GLfloat[3 * app.scene.num_points];
+            app.scene.num_points = (point_count - 1) / skip + 1;
+            point_centers = new GLfloat[3 * app.scene.num_points];
+            point_colors = new GLfloat[3 * app.scene.num_points];
             section = POINTS;
         }
         // camera data
@@ -309,18 +323,20 @@ void initializeScene(const char *scene_filename, App &app)
         {
             std::istringstream iss(line);
             iss >> x >> y >> z >> size >> red >> green >> blue;
-            /*if (point_idx % 100 == 0)
+            
+            if (point_idx % skip == 0)
             {
                 //if (point_idx >= app.scene.num_points) std::cout << "Oops - exceeded point count" << std::endl;
-                point_centers[3 * point_idx/100] = x;
-                point_centers[3 * point_idx/100 + 1] = y;
-                point_centers[3 * point_idx/100 + 2] = z;
-                point_colors[3 * point_idx/100] = red;
-                point_colors[3 * point_idx/100 + 1] = green;
-                point_colors[3 * point_idx/100 + 2] = blue;
+                point_centers[3 * (point_idx / skip)] = x;
+                point_centers[3 * (point_idx / skip) + 1] = y;
+                point_centers[3 * (point_idx / skip) + 2] = z;
+                point_colors[3 * (point_idx / skip)] = red;
+                point_colors[3 * (point_idx / skip) + 1] = green;
+                point_colors[3 * (point_idx / skip) + 2] = blue;
             }
-            point_idx++;*/
-            if (point_idx % 100 == 0)
+            point_idx++;
+            /*
+            if (point_idx % 10 == 0)
             {
                 Object *model = new Object();
                 model->type = ModelType::SPHERE;
@@ -336,16 +352,19 @@ void initializeScene(const char *scene_filename, App &app)
                 app.scene.models.push_back(model);
             }
             point_idx++;
+            */
         }
     }
-    //std::cout << point_idx/100 << "/" << app.scene.num_points << std::endl;
-    //app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, app.scene.num_points, app.vertex_position_attrib,
-    //    app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, &(app.scene.model.face_index_count));
+    std::cout << point_idx / skip << "/" << app.scene.num_points << std::endl;
+    app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, app.scene.num_points, app.vertex_position_attrib,
+        app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, &(app.scene.model.face_index_count));
 
     std::cout << "Finished" << std::endl;
+
+    app.scene.camera_pos[0] -= 75.0;
 }
 
-void initializeUniforms(App &app)
+void initializeUniforms(float camera_offset, App &app)
 {
     glUseProgram(app.program);
 
@@ -354,13 +373,19 @@ void initializeUniforms(App &app)
     glUniform3fv(app.uniforms["light_position[0]"], app.scene.num_lights, app.scene.light_positions);
     glUniform3fv(app.uniforms["light_color[0]"], app.scene.num_lights, app.scene.light_colors);
     glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
-    glUniform1f(app.uniforms["camera_offset"], CAMERA_OFFSET);
+    glUniform1f(app.uniforms["camera_offset"], camera_offset);
 
     glUseProgram(0);
 }
 
 void idle(GLFWwindow *window, App &app)
 {
+    // update camera
+    app.scene.camera_pos[0] += 0.25;
+    glUseProgram(app.program);
+    glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
+    glUseProgram(0);
+
     render(window, app);
 }
 
@@ -376,25 +401,17 @@ void render(GLFWwindow *window, App &app)
     glUseProgram(app.program);
     
     // Draw all models
+    // Upload dynamic values to shader uniform variables
+    glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
+    // Render
+    glBindVertexArray(app.scene.model.vertex_array);
+    glPatchParameteri(GL_PATCH_VERTICES, 3);
+    glDrawElementsInstanced(GL_PATCHES, app.scene.model.face_index_count, GL_UNSIGNED_SHORT, 0, app.scene.num_points);
+    glBindVertexArray(0);
+
+    /*
     for (i = 0; i < app.scene.models.size(); i++)
     {
-        /*
-        // Upload values to shader uniform variables
-        glUniform1i(app.uniforms["num_lights"], app.scene.num_lights);
-        glUniform3fv(app.uniforms["light_ambient"], 1, glm::value_ptr(app.scene.ambient_light));
-        glUniform3fv(app.uniforms["light_position[0]"], app.scene.num_lights, app.scene.light_positions);
-        glUniform3fv(app.uniforms["light_color[0]"], app.scene.num_lights, app.scene.light_colors);
-        glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
-        glUniform1f(app.uniforms["camera_offset"], CAMERA_OFFSET);
-
-        glBindVertexArray(app.scene.model.vertex_array);
-        glPatchParameteri(GL_PATCH_VERTICES, 3);
-        glDrawElementsInstanced(GL_PATCHES, app.scene.model.face_index_count, GL_UNSIGNED_SHORT, 0, app.scene.num_points);
-        //glDrawElements(GL_PATCHES, app.scene.model.face_index_count, GL_UNSIGNED_SHORT, 0);
-        glBindVertexArray(0);
-        */
-        
-        
         // Upload values to shader uniform variables per model
         glUniform3fv(app.uniforms["model_center"], 1, glm::value_ptr(app.scene.models[i]->center));
         glUniform1f(app.uniforms["model_size"], app.scene.models[i]->size);
@@ -420,6 +437,7 @@ void render(GLFWwindow *window, App &app)
         glDrawElements(GL_PATCHES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
         glBindVertexArray(0);
     }
+    */
 
     glUseProgram(0);
 
@@ -432,20 +450,26 @@ void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods)
 
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
-        uint8_t *pixels = new uint8_t[app_ptr->framebuffer_width * app_ptr->framebuffer_height * 3];
-#ifdef OFFSCREEN
-        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-#else
-        glReadPixels(0, 0, app_ptr->framebuffer_width, app_ptr->framebuffer_height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-#endif
-        int i;
-        FILE *fp = fopen("equirect.ppm", "wb");
-        fprintf(fp, "P6\n%d %d\n255\n", app_ptr->framebuffer_width, app_ptr->framebuffer_height);
-        for (i = app_ptr->framebuffer_height - 1; i >= 0; i --) {
-            fwrite(pixels + (i * app_ptr->framebuffer_width * 3), sizeof(uint8_t), app_ptr->framebuffer_width * 3, fp);
-        }
-        fclose(fp);
+        saveImage("equirect.ppm", app_ptr->framebuffer_width, app_ptr->framebuffer_height);
     }
+}
+
+void saveImage(const char *filename, int framebuffer_width, int framebuffer_height)
+{
+    uint8_t *pixels = new uint8_t[framebuffer_width * framebuffer_height * 3];
+#ifdef OFFSCREEN
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+#else
+    glReadPixels(0, 0, framebuffer_width, framebuffer_height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+#endif
+    int i;
+    FILE *fp = fopen(filename, "wb");
+    fprintf(fp, "P6\n%d %d\n255\n", framebuffer_width, framebuffer_height);
+    for (i = framebuffer_height - 1; i >= 0; i --) {
+        fwrite(pixels + (i * framebuffer_width * 3), sizeof(uint8_t), framebuffer_width * 3, fp);
+    }
+    fclose(fp);
+    delete[] pixels;
 }
 
 void loadShader(std::string shader_filename_base, App &app)

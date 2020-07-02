@@ -2,24 +2,25 @@
 
 in vec3 world_position;
 in vec3 world_normal;
+in vec3 model_color;
 
 uniform int num_lights;
 uniform vec3 light_ambient;
 uniform vec3 light_position[10];
 uniform vec3 light_color[10];
 uniform vec3 camera_position;
-uniform vec3 material_color;      // Ka and Kd
-uniform vec3 material_specular;   // Ks
-uniform float material_shininess; // n
+//uniform vec3 material_color;      // Ka and Kd
+//uniform vec3 material_specular;   // Ks
+//uniform float material_shininess; // n
 
 out vec4 FragColor;
 
 void main() {
-    // ambient
-    vec3 ambient = light_ambient * material_color;
-
     vec3 light_diffuse = vec3(0.0, 0.0, 0.0);
     vec3 light_specular = vec3(0.0, 0.0, 0.0);
+
+    vec3 material_specular = vec3(1.0, 1.0, 1.0);
+    float material_shininess = 64.0;
 
     for(int i = 0; i < num_lights; i++) {
         //diffuse
@@ -37,7 +38,8 @@ void main() {
     light_diffuse = min(light_diffuse, 1.0);
     light_specular = min(light_specular, 1.0);
 
-    vec3 final_color = min((light_ambient * material_color) + (light_diffuse * material_color) + (light_specular * material_specular), 1.0);
+    //vec3 final_color = min((light_ambient * material_color) + (light_diffuse * material_color) + (light_specular * material_specular), 1.0);
+    vec3 final_color = min((light_ambient * model_color) + (light_diffuse * model_color) + (light_specular * material_specular), 1.0);
 
     FragColor = vec4(final_color, 1.0);
 }

@@ -9,12 +9,14 @@ layout(triangles) in;
 layout(triangle_strip, max_vertices = 12) out;
 
 in vec3 world_normal_tese[];
+in vec3 model_color_tese[];
 
 uniform vec3 camera_position;
 uniform float camera_offset;
 
 out vec3 world_position;
 out vec3 world_normal;
+out vec3 model_color;
 
 float min3(vec3 v);
 float max3(vec3 v);
@@ -43,6 +45,7 @@ void main() {
     vec4 final_projected_verts[12];
     vec3 final_world_positions[12];
     vec3 final_world_normals[12];
+    vec3 final_model_colors[12];
     projectTriangle(verts, projected_verts);
 
     vec3 lons = vec3(projected_verts[0].x, projected_verts[1].x, projected_verts[2].x);
@@ -80,16 +83,19 @@ void main() {
                 final_projected_verts[2 * i] = vec4(projected_verts[idx].x, projected_pole, projected_verts[pole_vert].zw);
                 final_world_positions[2 * i] = verts[pole_vert];
                 final_world_normals[2 * i] = world_normal_tese[pole_vert];
+                final_model_colors[2 * i] = model_color_tese[pole_vert];
 
                 final_projected_verts[2 * i + 1] = projected_verts[idx];
                 final_world_positions[2 * i + 1] = verts[idx];
                 final_world_normals[2 * i + 1] = world_normal_tese[idx];
+                final_model_colors[2 * i + 1] = model_color_tese[idx];
             }
         }
         // pole crosses through an edge
         else if (weights.x < EPSILON || weights.y < EPSILON || weights.z < EPSILON) {
             vec3 pole_intersect_position = lerp3D(verts[0], verts[1], verts[2], weights);
             vec3 pole_intersect_normal = normalize(lerp3D(world_normal_tese[0], world_normal_tese[1], world_normal_tese[2], weights));
+            vec3 pole_intersect_color = lerp3D(model_color_tese[0], model_color_tese[1], model_color_tese[2], weights);
             float pole_intersect_distance = projectedDistance(pole_intersect_position);
 
             int indices[3] = (weights.x < EPSILON) ? int[](2, 0, 1) : ((weights.y < EPSILON) ? int[](0, 1, 2) : int[](1, 2, 0));
@@ -98,10 +104,12 @@ void main() {
                 final_projected_verts[2 * i] = vec4(projected_verts[indices[i]].x, projected_pole, pole_intersect_distance, 1.0);
                 final_world_positions[2 * i] = pole_intersect_position;
                 final_world_normals[2 * i] = pole_intersect_normal;
+                final_model_colors[2 * i] = pole_intersect_color;
 
                 final_projected_verts[2 * i + 1] = projected_verts[indices[i]];
                 final_world_positions[2 * i + 1] = verts[indices[i]];
                 final_world_normals[2 * i + 1] = world_normal_tese[indices[i]];
+                final_model_colors[2 * i + 1] = model_color_tese[indices[i]];
             }
         }
         // pole crosses through center of triangle
@@ -109,6 +117,7 @@ void main() {
             non_pole = false;
             vec3 pole_intersect_position = lerp3D(verts[0], verts[1], verts[2], weights);
             vec3 pole_intersect_normal = normalize(lerp3D(world_normal_tese[0], world_normal_tese[1], world_normal_tese[2], weights));
+            vec3 pole_intersect_color = lerp3D(model_color_tese[0], model_color_tese[1], model_color_tese[2], weights);
             float pole_intersect_distance = projectedDistance(pole_intersect_position);
 
             int indices[3];
@@ -131,10 +140,12 @@ void main() {
                 final_projected_verts[2 * i] = vec4(projected_verts[indices[i]].x, projected_pole, pole_intersect_distance, 1.0);
                 final_world_positions[2 * i] = pole_intersect_position;
                 final_world_normals[2 * i] = pole_intersect_normal;
+                final_model_colors[2 * i] = pole_intersect_color;
 
                 final_projected_verts[2 * i + 1] = projected_verts[indices[i]];
                 final_world_positions[2 * i + 1] = verts[indices[i]];
                 final_world_normals[2 * i + 1] = world_normal_tese[indices[i]];
+                final_model_colors[2 * i + 1] = model_color_tese[indices[i]];
             }
         }
     }
@@ -144,6 +155,7 @@ void main() {
             final_projected_verts[i] = projected_verts[i];
             final_world_positions[i] = verts[i];
             final_world_normals[i] = world_normal_tese[i];
+            final_model_colors[i] = model_color_tese[i];
         }
     }
 
@@ -156,6 +168,7 @@ void main() {
 
             world_position = final_world_positions[i];
             world_normal = final_world_normals[i];
+            model_color = final_model_colors[i];
             gl_Position = final_projected_verts[i];
             EmitVertex();
         }
@@ -167,6 +180,7 @@ void main() {
 
             world_position = final_world_positions[i];
             world_normal = final_world_normals[i];
+            model_color = final_model_colors[i];
             gl_Position = final_projected_verts[i];
             EmitVertex();
         }
@@ -176,6 +190,7 @@ void main() {
         for (i = 0; i < num_verts; i++) {
             world_position = final_world_positions[i];
             world_normal = final_world_normals[i];
+            model_color = final_model_colors[i];
             gl_Position = final_projected_verts[i];
             EmitVertex();
         }
