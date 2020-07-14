@@ -6,12 +6,14 @@ layout(vertices = 3) out;
 
 in vec3 world_position_vert[];
 in vec3 world_normal_vert[];
+in vec2 model_texcoord_vert[];
 in vec3 model_color_vert[];
 
 uniform vec3 camera_position;
 
 out vec3 world_position_tesc[];
 out vec3 world_normal_tesc[];
+out vec2 model_texcoord_tesc[];
 out vec3 model_color_tesc[];
 
 float min3(float v[3]);
@@ -21,6 +23,7 @@ float max3(float v[4]);
 void main() {
     world_position_tesc[gl_InvocationID] = world_position_vert[gl_InvocationID];
     world_normal_tesc[gl_InvocationID] = world_normal_vert[gl_InvocationID];
+    model_texcoord_tesc[gl_InvocationID] = model_texcoord_vert[gl_InvocationID];
     model_color_tesc[gl_InvocationID] = model_color_vert[gl_InvocationID];
 
     if (gl_InvocationID == 0) {

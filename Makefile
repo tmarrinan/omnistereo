@@ -8,8 +8,8 @@ ifeq ($(MACHINE),Darwin)
 	INC= -I/usr/local/include -I${HOME}/local/include -I./include
 	LIB= -L/usr/local/lib -L${HOME}/local/lib -lglfw -lglad
 else
-	INC= -I/usr/include -I./include
-	LIB= -L/usr/lib64 -lGL -lglfw -lglad
+	INC= -I/usr/include -I${HOME}/local/include -I./include
+	LIB= -L/usr/lib64 -L${HOME}/local/lib -lGL -lglfw -lglad -ldl
 endif
 
 SRCDIR= src

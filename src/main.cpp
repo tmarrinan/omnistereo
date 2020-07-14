@@ -18,7 +18,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-//#define OFFSCREEN
+#define OFFSCREEN
 //#define CAMERA_OFFSET 0.0 //-0.0325
 
 enum ModelType : uint8_t {PLANE, CUBE, SPHERE};
@@ -43,8 +43,8 @@ typedef struct Object {
 
 typedef struct Scene {
     glm::vec3 camera_pos;
-    std::vector<Object*> models;
-    //Model model;
+    //std::vector<Object*> models;
+    Model model;
     glm::vec3 ambient_light;
     int num_lights;
     uint32_t num_points;
@@ -64,6 +64,7 @@ typedef struct App {
     GLuint vertex_texcoord_attrib;
     GLuint point_center_attrib;
     GLuint point_color_attrib;
+    GLuint splat_texture;
     Model plane_model;
     Model cube_model;
     Model sphere_model;
@@ -74,11 +75,12 @@ typedef struct App {
 
 void init(GLFWwindow *window, int width, int height, float camera_offset, const char *scene_filename, App &app_ptr);
 void initializeScene(const char *scene_filename, App &app);
+void initializeTextures(App &app);
 void initializeUniforms(float camera_offset, App &app);
 void idle(GLFWwindow *window, App &app_ptr);
 void render(GLFWwindow *window, App &app_ptr);
 void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods);
-void saveImage(const char *filename, int framebuffer_width, int framebuffer_height);
+void saveImage(const char *filename, App &app);
 void loadShader(std::string shader_filename_base, App &app);
 GLint compileShader(char *source, int32_t length, GLenum type);
 GLuint createShaderProgram(GLuint shaders[], uint num_shaders);
@@ -98,10 +100,12 @@ int main(int argc, char **argv)
     // Read command line parameters for overall width / height
     int width = 1440;
     int height = 720;
+    std::string save_filename = "frame";
     float camera_offset = 0.0f;
     if (argc >= 2) width = std::stoi(argv[1]);
     if (argc >= 3) height = std::stoi(argv[2]);
-    if (argc >= 4) camera_offset = std::stof(argv[3]);
+    if (argc >= 4) save_filename = argv[3];
+    if (argc >= 5) camera_offset = std::stof(argv[4]);
 
     // Initialize GLFW
     if (!glfwInit())
@@ -141,15 +145,16 @@ int main(int argc, char **argv)
 
     int frame_idx = 1;
     char output_filename[128];
-    sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
+    //sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
+    sprintf(output_filename, "output/%s_%05d.ppm", save_filename.c_str(), frame_idx);
     double previous_time = glfwGetTime();
     int frame_count = 0;
     render(window, app);
-    //while (!glfwWindowShouldClose(window) && frame_idx < 600)
-    while (!glfwWindowShouldClose(window))
+    while (!glfwWindowShouldClose(window) && frame_idx <= 800)
+    //while (!glfwWindowShouldClose(window))
     {
         // Save image
-        //saveImage(output_filename, app.framebuffer_width, app.framebuffer_height);
+        saveImage(output_filename, app);
 
         // Measure speed
         double current_time = glfwGetTime();
@@ -157,7 +162,7 @@ int main(int argc, char **argv)
         // Print every 2 seconds
         if (current_time - previous_time >= 2.0)
         {
-            printf("%.3lf FPS\n", (double)frame_count / (current_time - previous_time));
+            printf("%.3lf FPS (%.3lf avg frame time)\n", (double)frame_count / (current_time - previous_time), (current_time - previous_time) / (double)frame_count);
 
             frame_count = 0;
             previous_time = current_time;
@@ -168,6 +173,7 @@ int main(int argc, char **argv)
 
         frame_idx++;
         //sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
+        sprintf(output_filename, "output/%s_%05d.ppm", save_filename.c_str(), frame_idx);
     }
 
     // clean up
@@ -191,12 +197,14 @@ void init(GLFWwindow *window, int width, int height, float camera_offset, const 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     // depth buffer for offscreen framebuffer
     GLuint framebuffer_depth;
     glGenRenderbuffers(1, &framebuffer_depth);
     glBindRenderbuffer(GL_RENDERBUFFER, framebuffer_depth);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
     // offscreen framebuffer
     glGenFramebuffers(1, &(app.framebuffer));
@@ -208,6 +216,8 @@ void init(GLFWwindow *window, int width, int height, float camera_offset, const 
     GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
     glDrawBuffers(1, draw_buffers);
 
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     //GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     //std::cout << "FRAMEBUFFER STATUS: [" << status << "]" << std::endl;
 
@@ -218,6 +228,7 @@ void init(GLFWwindow *window, int width, int height, float camera_offset, const 
     // save framebuffer dimensions
     int w, h;
     glfwGetFramebufferSize(window, &w, &h);
+    app.framebuffer = 0;
     app.framebuffer_width = w;
     app.framebuffer_height = h;
 #endif
@@ -228,6 +239,9 @@ void init(GLFWwindow *window, int width, int height, float camera_offset, const 
     glClearColor(0.68, 0.85, 0.95, 1.0);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendEquation(GL_FUNC_ADD);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
@@ -251,6 +265,8 @@ void init(GLFWwindow *window, int width, int height, float camera_offset, const 
     initializeScene(scene_filename, app);
     //initializeScene(jsobject::parseFromFile(scene_filename), app.scene);
 
+    initializeTextures(app);
+
     loadShader("resrc/shaders/equirect_color", app);
 
     initializeUniforms(camera_offset, app);
@@ -271,7 +287,7 @@ void initializeScene(const char *scene_filename, App &app)
     int light_count, point_count, light_idx = 0, point_idx = 0;
     GLfloat *point_centers, *point_colors;
     float x, y, z, size, red, green, blue;
-    int skip = 1000;
+    int skip = 1; // 1 out ouf every `skip` points will be rendered
     while (std::getline(scene_file, line))
     {
         // start of camera data
@@ -327,7 +343,7 @@ void initializeScene(const char *scene_filename, App &app)
         {
             std::istringstream iss(line);
             iss >> x >> y >> z >> size >> red >> green >> blue;
-            /*
+            
             if (point_idx % skip == 0)
             {
                 //if (point_idx >= app.scene.num_points) std::cout << "Oops - exceeded point count" << std::endl;
@@ -339,8 +355,8 @@ void initializeScene(const char *scene_filename, App &app)
                 point_colors[3 * (point_idx / skip) + 2] = blue;
             }
             point_idx++;
-            */
             
+            /*
             if (point_idx % skip == 0)
             {
                 Object *model = new Object();
@@ -357,18 +373,40 @@ void initializeScene(const char *scene_filename, App &app)
                 app.scene.models.push_back(model);
             }
             point_idx++;
-            
+            */
         }
     }
-    //std::cout << point_idx / skip << "/" << app.scene.num_points << std::endl;
-    //app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, app.scene.num_points, app.vertex_position_attrib,
-    //    app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, &(app.scene.model.face_index_count));
+    std::cout << point_idx / skip << "/" << app.scene.num_points << std::endl;
+    app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, app.scene.num_points, app.vertex_position_attrib,
+        app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, &(app.scene.model.face_index_count));
     delete[] point_centers;
     delete[] point_colors;
 
     std::cout << "Finished" << std::endl;
 
-    app.scene.camera_pos[0] -= 75.0;
+    glm::vec3 camera_move_direction = glm::vec3(0.98348, -0.03766, 0.17702);
+    app.scene.camera_pos = app.scene.camera_pos - (-75.0f * camera_move_direction);
+    //app.scene.camera_pos[0] -= 75.0;
+    //app.scene.camera_pos[0] -= 5.0;
+}
+
+void initializeTextures(App &app) {
+    GLuint texture_id;
+    glGenTextures(1, &texture_id);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+
+    int img_w, img_h, img_c;
+    uint8_t *pixels = stbi_load("resrc/images/splat.png", &img_w, &img_h, &img_c, STBI_rgb_alpha);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img_w, img_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    app.splat_texture = texture_id;
 }
 
 void initializeUniforms(float camera_offset, App &app)
@@ -388,7 +426,9 @@ void initializeUniforms(float camera_offset, App &app)
 void idle(GLFWwindow *window, App &app)
 {
     // update camera
-    app.scene.camera_pos[0] += 0.25;
+    glm::vec3 camera_move_direction = glm::vec3(0.98348, -0.03766, 0.17702);
+    app.scene.camera_pos = app.scene.camera_pos + (-0.25f * camera_move_direction);
+    //app.scene.camera_pos[0] += 0.25;
     glUseProgram(app.program);
     glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
     glUseProgram(0);
@@ -400,6 +440,8 @@ void render(GLFWwindow *window, App &app)
 {
     int i;
 
+    glBindFramebuffer(GL_FRAMEBUFFER, app.framebuffer);
+
     // Delete previous frame (reset both framebuffer and z-buffer)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -408,16 +450,22 @@ void render(GLFWwindow *window, App &app)
     glUseProgram(app.program);
     
     // Draw all models
+    
     // Upload dynamic values to shader uniform variables
     glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
+    
+    // Set texture
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, app.splat_texture);
+    glUniform1i(app.uniforms["image"], 0);
+
     // Render
-    /*
     glBindVertexArray(app.scene.model.vertex_array);
     glPatchParameteri(GL_PATCH_VERTICES, 3);
     glDrawElementsInstanced(GL_PATCHES, app.scene.model.face_index_count, GL_UNSIGNED_SHORT, 0, app.scene.num_points);
     glBindVertexArray(0);
-    */
     
+    /*
     for (i = 0; i < app.scene.models.size(); i++)
     {
         // Upload values to shader uniform variables per model
@@ -445,7 +493,7 @@ void render(GLFWwindow *window, App &app)
         glDrawElements(GL_PATCHES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
         glBindVertexArray(0);
     }
-    
+    */
 
     glUseProgram(0);
 
@@ -458,23 +506,25 @@ void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods)
 
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
-        saveImage("equirect.ppm", app_ptr->framebuffer_width, app_ptr->framebuffer_height);
+        saveImage("equirect.ppm", *app_ptr);
     }
 }
 
-void saveImage(const char *filename, int framebuffer_width, int framebuffer_height)
+void saveImage(const char *filename, App &app)
 {
-    uint8_t *pixels = new uint8_t[framebuffer_width * framebuffer_height * 3];
+    uint8_t *pixels = new uint8_t[app.framebuffer_width * app.framebuffer_height * 3];
 #ifdef OFFSCREEN
+    glBindTexture(GL_TEXTURE_2D, app.framebuffer_texture);
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+    glBindTexture(GL_TEXTURE_2D, 0);
 #else
-    glReadPixels(0, 0, framebuffer_width, framebuffer_height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+    glReadPixels(0, 0, app.framebuffer_width, app.framebuffer_height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
 #endif
     int i;
     FILE *fp = fopen(filename, "wb");
-    fprintf(fp, "P6\n%d %d\n255\n", framebuffer_width, framebuffer_height);
-    for (i = framebuffer_height - 1; i >= 0; i --) {
-        fwrite(pixels + (i * framebuffer_width * 3), sizeof(uint8_t), framebuffer_width * 3, fp);
+    fprintf(fp, "P6\n%d %d\n255\n", app.framebuffer_width, app.framebuffer_height);
+    for (i = app.framebuffer_height - 1; i >= 0; i --) {
+        fwrite(pixels + (i * app.framebuffer_width * 3), sizeof(uint8_t), app.framebuffer_width * 3, fp);
     }
     fclose(fp);
     delete[] pixels;
@@ -1076,6 +1126,31 @@ GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32
     glBindVertexArray(vertex_array);
 
     // Calculate vertices, normals, texture coordinate, and faces
+    int num_verts = 4;
+    int num_faces = 2;
+    GLfloat vertices[12] = {
+        -0.5, -0.5,  0.0,
+         0.5, -0.5,  0.0,
+         0.5,  0.5,  0.0,
+        -0.5,  0.5,  0.0
+    };
+    GLfloat normals[12] = {
+        0.0, 0.0, -1.0,
+        0.0, 0.0, -1.0,
+        0.0, 0.0, -1.0,
+        0.0, 0.0, -1.0
+    };
+    GLfloat texcoords[8] = {
+        0.0, 0.0,
+        1.0, 0.0,
+        1.0, 1.0,
+        0.0, 1.0
+    };
+    GLushort indices[6] = {
+        0, 1, 2,
+        0, 2, 3
+    };
+    /*
     int i, j;
     int slices = 14;
     int stacks = 7;
@@ -1129,6 +1204,7 @@ GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32
             k2++;
         }
     }
+    */
 
     // Create buffer to store vertex positions (3D points)
     GLuint vertex_position_buffer;
@@ -1214,10 +1290,10 @@ GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32
     glBindVertexArray(0);
 
     // Delete arrays
-    delete[] vertices;
-    delete[] normals;
-    delete[] texcoords;
-    delete[] indices;
+    //delete[] vertices;
+    //delete[] normals;
+    //delete[] texcoords;
+    //delete[] indices;
 
     // Store the number of vertices used for entire model (number of faces * 3)
     *face_index_count = 3 * num_faces;
