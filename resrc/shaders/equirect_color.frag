@@ -50,18 +50,25 @@ void main() {
     */
 
     
-    // SPRITE SPHERES
+    // BILLBOARD SPHERES
     vec2 norm_texcoord = (2.0 * model_texcoord) - vec2(1.0, 1.0);
     float magnitude = dot(norm_texcoord, norm_texcoord);
     if (magnitude > 1.0) {
         discard;
     }
-    FragColor = vec4(model_color, 1.0);
-
-    /*
     vec3 sphere_normal = vec3(norm_texcoord, sqrt(1.0 - magnitude));
+
+    // TODO: calculate per billboard, not per pixel
+    vec3 n = world_normal;
+    vec3 u = normalize(cross(vec3(0.0, 1.0, 0.0), n));
+    vec3 v = cross(n, u);
+    mat3 r = mat3(u, v, n);
+
+    sphere_normal = normalize(r * sphere_normal);
+
     //vec3 sphere_position = (sphere_normal * model_radius) + model_center;
 
+    // TODO: change world_position to sphere_position
     vec3 light_diffuse = vec3(0.0, 0.0, 0.0);
     for(int i = 0; i < num_lights; i++) {
         //diffuse
@@ -73,5 +80,6 @@ void main() {
     vec3 final_color = min((light_ambient * model_color) + (light_diffuse * model_color), 1.0);
 
     FragColor = vec4(final_color, 1.0);
-    */
+    //float distance = length(sphere_position - camera_position);
+    //gl_FragDepth = (distance - NEAR) / (FAR - NEAR);
 }

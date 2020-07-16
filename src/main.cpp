@@ -154,7 +154,7 @@ int main(int argc, char **argv)
     //while (!glfwWindowShouldClose(window))
     {
         // Save image
-        saveImage(output_filename, app);
+        //saveImage(output_filename, app);
 
         // Measure speed
         double current_time = glfwGetTime();
@@ -419,6 +419,7 @@ void initializeUniforms(float camera_offset, App &app)
     glUniform3fv(app.uniforms["light_color[0]"], app.scene.num_lights, app.scene.light_colors);
     glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
     glUniform1f(app.uniforms["camera_offset"], camera_offset);
+    glUniform1f(app.uniforms["model_size"], 0.4);
 
     glUseProgram(0);
 }

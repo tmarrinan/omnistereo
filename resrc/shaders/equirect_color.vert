@@ -17,21 +17,20 @@ out vec3 model_color_vert;
 
 void main() {
     vec3 vertex_direction = normalize(point_center - camera_position);
+
     vec3 up = vec3(0.0, 1.0, 0.0);
-    vec3 cam_right = cross(vertex_direction, up);
+    vec3 cam_right = normalize(cross(vertex_direction, up));
     vec3 cam_up = cross(cam_right, vertex_direction);
 
-    world_position_vert = point_center + cam_right * vertex_position.x * 0.4 +
-                                         cam_up * vertex_position.y * 0.4;
+    world_position_vert = point_center + cam_right * vertex_position.x * model_size +
+                                         cam_up * vertex_position.y * model_size;
     world_normal_vert = -vertex_direction;
     model_texcoord_vert = vertex_texcoord;
     model_color_vert = point_color;
 
 
-    //world_position_vert = (0.4 * vertex_position) + point_center;
+    //world_position_vert = (model_size * vertex_position) + point_center;
     //world_normal_vert = vertex_normal;
+    //model_texcoord_vert = vertex_texcoord;
     //model_color_vert = point_color;
-
-    //world_position_vert = (model_size * vertex_position) + model_center;
-    //world_normal_vert = vertex_normal;
 }
