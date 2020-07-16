@@ -11,6 +11,7 @@ layout(triangle_strip, max_vertices = 12) out;
 in vec3 world_normal_tese[];
 in vec2 model_texcoord_tese[];
 in vec3 model_color_tese[];
+in vec3 model_center_tese[];
 
 uniform vec3 camera_position;
 uniform float camera_offset;
@@ -19,6 +20,7 @@ out vec3 world_position;
 out vec3 world_normal;
 out vec2 model_texcoord;
 out vec3 model_color;
+out vec3 model_center;
 
 float min3(vec3 v);
 float max3(vec3 v);
@@ -49,7 +51,6 @@ void main() {
     vec3 final_world_positions[12];
     vec3 final_world_normals[12];
     vec2 final_model_texcoords[12];
-    vec3 final_model_colors[12];
     projectTriangle(verts, projected_verts);
 
     vec3 lons = vec3(projected_verts[0].x, projected_verts[1].x, projected_verts[2].x);
@@ -88,13 +89,11 @@ void main() {
                 final_world_positions[2 * i] = verts[pole_vert];
                 final_world_normals[2 * i] = world_normal_tese[pole_vert];
                 final_model_texcoords[2 * i] = model_texcoord_tese[pole_vert];
-                final_model_colors[2 * i] = model_color_tese[pole_vert];
 
                 final_projected_verts[2 * i + 1] = projected_verts[idx];
                 final_world_positions[2 * i + 1] = verts[idx];
                 final_world_normals[2 * i + 1] = world_normal_tese[idx];
                 final_model_texcoords[2 * i + 1] = model_texcoord_tese[idx];
-                final_model_colors[2 * i + 1] = model_color_tese[idx];
             }
         }
         // pole crosses through an edge
@@ -102,7 +101,6 @@ void main() {
             vec3 pole_intersect_position = lerp3D(verts[0], verts[1], verts[2], weights);
             vec3 pole_intersect_normal = normalize(lerp3D(world_normal_tese[0], world_normal_tese[1], world_normal_tese[2], weights));
             vec2 pole_intersect_texcoord = lerp3D(model_texcoord_tese[0], model_texcoord_tese[1], model_texcoord_tese[2], weights);
-            vec3 pole_intersect_color = lerp3D(model_color_tese[0], model_color_tese[1], model_color_tese[2], weights);
             float pole_intersect_distance = projectedDistance(pole_intersect_position);
 
             int indices[3] = (weights.x < EPSILON) ? int[](2, 0, 1) : ((weights.y < EPSILON) ? int[](0, 1, 2) : int[](1, 2, 0));
@@ -112,13 +110,11 @@ void main() {
                 final_world_positions[2 * i] = pole_intersect_position;
                 final_world_normals[2 * i] = pole_intersect_normal;
                 final_model_texcoords[2 * i] = pole_intersect_texcoord;
-                final_model_colors[2 * i] = pole_intersect_color;
 
                 final_projected_verts[2 * i + 1] = projected_verts[indices[i]];
                 final_world_positions[2 * i + 1] = verts[indices[i]];
                 final_world_normals[2 * i + 1] = world_normal_tese[indices[i]];
                 final_model_texcoords[2 * i + 1] = model_texcoord_tese[indices[i]];
-                final_model_colors[2 * i + 1] = model_color_tese[indices[i]];
             }
         }
         // pole crosses through center of triangle
@@ -127,7 +123,6 @@ void main() {
             vec3 pole_intersect_position = lerp3D(verts[0], verts[1], verts[2], weights);
             vec3 pole_intersect_normal = normalize(lerp3D(world_normal_tese[0], world_normal_tese[1], world_normal_tese[2], weights));
             vec2 pole_intersect_texcoord = lerp3D(model_texcoord_tese[0], model_texcoord_tese[1], model_texcoord_tese[2], weights);
-            vec3 pole_intersect_color = lerp3D(model_color_tese[0], model_color_tese[1], model_color_tese[2], weights);
             float pole_intersect_distance = projectedDistance(pole_intersect_position);
 
             int indices[3];
@@ -151,13 +146,11 @@ void main() {
                 final_world_positions[2 * i] = pole_intersect_position;
                 final_world_normals[2 * i] = pole_intersect_normal;
                 final_model_texcoords[2 * i] = pole_intersect_texcoord;
-                final_model_colors[2 * i] = pole_intersect_color;
 
                 final_projected_verts[2 * i + 1] = projected_verts[indices[i]];
                 final_world_positions[2 * i + 1] = verts[indices[i]];
                 final_world_normals[2 * i + 1] = world_normal_tese[indices[i]];
                 final_model_texcoords[2 * i + 1] = model_texcoord_tese[indices[i]];
-                final_model_colors[2 * i + 1] = model_color_tese[indices[i]];
             }
         }
     }
@@ -168,7 +161,6 @@ void main() {
             final_world_positions[i] = verts[i];
             final_world_normals[i] = world_normal_tese[i];
             final_model_texcoords[i] = model_texcoord_tese[i];
-            final_model_colors[i] = model_color_tese[i];
         }
     }
 
@@ -182,7 +174,8 @@ void main() {
             world_position = final_world_positions[i];
             world_normal = final_world_normals[i];
             model_texcoord = final_model_texcoords[i];
-            model_color = final_model_colors[i];
+            model_color = model_color_tese[0]; // all vertices have same model color
+            model_center = model_center_tese[0]; // all vertices have same model center
             gl_Position = final_projected_verts[i];
             EmitVertex();
         }
@@ -195,7 +188,8 @@ void main() {
             world_position = final_world_positions[i];
             world_normal = final_world_normals[i];
             model_texcoord = final_model_texcoords[i];
-            model_color = final_model_colors[i];
+            model_color = model_color_tese[0]; // all vertices have same model color
+            model_center = model_center_tese[0]; // all vertices have same model center
             gl_Position = final_projected_verts[i];
             EmitVertex();
         }
@@ -206,7 +200,8 @@ void main() {
             world_position = final_world_positions[i];
             world_normal = final_world_normals[i];
             model_texcoord = final_model_texcoords[i];
-            model_color = final_model_colors[i];
+            model_color = model_color_tese[0]; // all vertices have same model color
+            model_center = model_center_tese[0]; // all vertices have same model center
             gl_Position = final_projected_verts[i];
             EmitVertex();
         }
@@ -234,7 +229,7 @@ vec4 equirectangular(vec3 vertex_position) {
     // move camera inside original projection sphere
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
-    vec3 offset = camera_offset * cross(dir, up);
+    vec3 offset = camera_offset * normalize(cross(dir, up));
     vec3 cam = camera_position + offset;
 
     

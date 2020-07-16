@@ -19,7 +19,6 @@
 #include "stb_image.h"
 
 #define OFFSCREEN
-//#define CAMERA_OFFSET 0.0 //-0.0325
 
 enum ModelType : uint8_t {PLANE, CUBE, SPHERE};
 
@@ -154,7 +153,7 @@ int main(int argc, char **argv)
     //while (!glfwWindowShouldClose(window))
     {
         // Save image
-        //saveImage(output_filename, app);
+        saveImage(output_filename, app);
 
         // Measure speed
         double current_time = glfwGetTime();

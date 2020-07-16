@@ -1,15 +1,21 @@
 #version 410 core
 
+#define NEAR 0.01
+#define FAR 1000.0
+
 in vec3 world_position;
 in vec3 world_normal;
 in vec2 model_texcoord;
 in vec3 model_color;
+in vec3 model_center;
 
+uniform float model_size;
 uniform int num_lights;
 uniform vec3 light_ambient;
 uniform vec3 light_position[10];
 uniform vec3 light_color[10];
 uniform vec3 camera_position;
+uniform float camera_offset;
 uniform vec3 material_color;      // Ka and Kd
 //uniform vec3 material_specular;   // Ks
 //uniform float material_shininess; // n
@@ -65,14 +71,14 @@ void main() {
     mat3 r = mat3(u, v, n);
 
     sphere_normal = normalize(r * sphere_normal);
+    float sphere_radius = model_size / 2.0;
 
-    //vec3 sphere_position = (sphere_normal * model_radius) + model_center;
+    vec3 sphere_position = (sphere_normal * sphere_radius) + model_center;
 
-    // TODO: change world_position to sphere_position
     vec3 light_diffuse = vec3(0.0, 0.0, 0.0);
     for(int i = 0; i < num_lights; i++) {
         //diffuse
-        vec3 light_direction = normalize(light_position[i] - world_position);
+        vec3 light_direction = normalize(light_position[i] - sphere_position);
         float n_dot_l = max(dot(sphere_normal, light_direction), 0.0);
         light_diffuse += light_color[i] * n_dot_l;
     }
@@ -80,6 +86,11 @@ void main() {
     vec3 final_color = min((light_ambient * model_color) + (light_diffuse * model_color), 1.0);
 
     FragColor = vec4(final_color, 1.0);
-    //float distance = length(sphere_position - camera_position);
-    //gl_FragDepth = (distance - NEAR) / (FAR - NEAR);
+
+    vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 cam_right = normalize(cross(sphere_position - camera_position, up));
+    vec3 cam = camera_position + (camera_offset * cam_right);
+    float distance = length(sphere_position - cam);
+    
+    gl_FragDepth = (distance - NEAR) / (FAR - NEAR);
 }
