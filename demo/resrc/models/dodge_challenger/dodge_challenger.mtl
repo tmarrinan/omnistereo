@@ -1,0 +1,294 @@
+# Blender MTL File: 'None'
+# Material Count: 25
+
+newmtl Black_glass
+Ns 894.117647
+Ka 1.000000 1.000000 1.000000
+Kd 0.003766 0.003766 0.003766
+Ks 0.169930 0.169930 0.169930
+Ke 0.000000 0.000000 0.000000
+Ni 1.030000
+d 0.500000
+illum 2
+map_Kd textures/glasses_lines.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl CarPaint
+Ns 356.862745
+Ka 1.000000 1.000000 1.000000
+Kd 0.837923 0.530770 0.034340
+Ks 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/col_body.png
+
+newmtl blinkers
+Ns 11.764706
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/blinkers_SMALL.png
+map_Ks textures/blinkers_SMALL.png
+
+newmtl body_mat
+Ns 29.411765
+Ka 1.000000 1.000000 1.000000
+Kd 0.004187 0.004187 0.004187
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/col_body.png
+
+newmtl brake_disk
+Ns 437.254902
+Ka 1.000000 1.000000 1.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.600000 0.600000 0.600000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/ao_brake_disk.png
+map_Bump textures/nor_brake_disk_SMALL.png
+map_Ks textures/spec_brake_disk_SMALL.png
+
+newmtl brake_disk_diff_brake_disk.png
+Ns 437.254902
+Ka 1.000000 1.000000 1.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.600000 0.600000 0.600000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_brake_disk_SMALL.png
+map_Bump textures/nor_brake_disk_SMALL.png
+map_Ks textures/spec_brake_disk_SMALL.png
+
+newmtl chassis
+Ns 94.117647
+Ka 1.000000 1.000000 1.000000
+Kd 0.160000 0.160000 0.160000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_chassis.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl chrome
+Ns 568.627451
+Ka 1.000000 1.000000 1.000000
+Kd 0.448000 0.448000 0.461440
+Ks 0.469500 0.469500 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/col_body.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl chrome_roller
+Ns 568.627451
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.824000
+Ks 0.939000 0.939000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_roller.png
+map_Bump textures/nor_roller.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl chrome_window
+Ns 568.627451
+Ka 1.000000 1.000000 1.000000
+Kd 0.009981 0.009981 0.010280
+Ks 0.469500 0.469500 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Bump textures/nor_window.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl essence_cap
+Ns 0.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.183859 0.183859 0.189375
+Ks 0.450720 0.450720 0.480000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_cap.png
+map_Bump textures/nor_cap.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl exhaust
+Ns 74.509804
+Ka 1.000000 1.000000 1.000000
+Kd 0.008768 0.008768 0.008768
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_exhaust.png
+
+newmtl glass_mat
+Ns 54.901961
+Ka 1.000000 1.000000 1.000000
+Kd 0.000090 0.000090 0.000090
+Ks 0.025000 0.025000 0.025000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+refl textures/refl_sky_SMALL.png
+
+newmtl glass_mat_glasses_lines.png
+Ns 54.901961
+Ka 1.000000 1.000000 1.000000
+Kd 0.000090 0.000090 0.000090
+Ks 0.025000 0.025000 0.025000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/glasses_lines.png
+refl textures/refl_sky_SMALL.png
+
+newmtl interior
+Ns 94.117647
+Ka 1.000000 1.000000 1.000000
+Kd 0.147843 0.097015 0.036710
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_interior.png
+
+newmtl interior_diff_interior
+Ns 94.117647
+Ka 1.000000 1.000000 1.000000
+Kd 0.147843 0.097015 0.036710
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_interior.png
+
+newmtl license_plate
+Ns 674.509804
+Ka 1.000000 1.000000 1.000000
+Kd 0.640000 0.640000 0.640000
+Ks 0.100000 0.100000 0.100000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_license_plate.png
+map_Bump textures/nor_license_plate.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl logo1
+Ns 568.627451
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.824000
+Ks 1.000000 1.000000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/challenger-logo.png
+map_Bump textures/nor_logo1.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl logo2
+Ns 94.117647
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 0.000000
+illum 2
+map_Kd textures/diff_roller.png
+map_d textures/challenger-logo.png
+
+newmtl logo3
+Ns 94.117647
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 0.000000
+illum 2
+map_Kd textures/diff_roller.png
+map_Bump textures/nor_logo-dodge.png
+map_d textures/logo-dodge.png
+
+newmtl rear_light
+Ns 749.019608
+Ka 1.000000 1.000000 1.000000
+Kd 0.238490 0.000000 0.005838
+Ks 0.200000 0.200000 0.200000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_rearlight.png
+map_Bump textures/wire_rearlight.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl rim
+Ns 115.686275
+Ka 1.000000 1.000000 1.000000
+Kd 0.430175 0.430175 0.443080
+Ks 0.939000 0.939000 1.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_rim_SMALL.png
+map_Bump textures/nor_rim_SMALL.png
+refl textures/refl_sky_EXTRASMALL.png
+
+newmtl roller
+Ns 54.901961
+Ka 1.000000 1.000000 1.000000
+Kd 0.006108 0.006108 0.006108
+Ks 0.000000 0.000000 0.000000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_roller.png
+map_Bump textures/nor_roller.png
+
+newmtl tire
+Ns 17.647059
+Ka 1.000000 1.000000 1.000000
+Kd 0.001810 0.001810 0.002185
+Ks 0.680000 0.680000 0.680000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd textures/diff_tire_SMALL.png
+map_Bump textures/nor_tire_SMALL.png
+map_Ks textures/diff_tire_SMALL.png

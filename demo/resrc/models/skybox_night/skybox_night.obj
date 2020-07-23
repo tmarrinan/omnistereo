@@ -1,0 +1,56 @@
+# OBJ file - skybox
+mtllib skybox_night.mtl
+
+# 1: left, bottom, back
+# 2: left, bottom, front
+# 3: left, top, back
+# 4: left, top, front
+# 5: right, bottom, back
+# 6: right, bottom, front
+# 7: right, top, back
+# 8: right, top, front
+v -0.5 -0.5 -0.5
+v -0.5 -0.5  0.5
+v -0.5  0.5 -0.5
+v -0.5  0.5  0.5
+v  0.5 -0.5 -0.5
+v  0.5 -0.5  0.5
+v  0.5  0.5 -0.5
+v  0.5  0.5  0.5
+
+vt 0.0 0.0
+vt 1.0 0.0
+vt 0.0 1.0
+vt 1.0 1.0
+
+vn -1.0  0.0  0.0
+vn  1.0  0.0  0.0
+vn  0.0 -1.0  0.0
+vn  0.0  1.0  0.0
+vn  0.0  0.0 -1.0
+vn  0.0  0.0  1.0
+
+usemtl skybox_xneg
+s 0
+f 2/1/2 1/2/2 3/4/2
+f 2/1/2 3/4/2 4/3/2
+
+usemtl skybox_xpos
+s 0
+f 5/1/1 6/2/1 8/4/1
+f 5/1/1 8/4/1 7/3/1
+
+usemtl skybox_ypos
+s 0
+f 3/1/3 7/2/3 8/4/3
+f 3/1/3 8/4/3 4/3/3
+
+usemtl skybox_zneg
+s 0
+f 6/1/6 2/2/6 4/4/6
+f 6/1/6 4/4/6 8/3/6
+
+usemtl skybox_zpos
+s 0
+f 1/1/5 5/2/5 7/4/5
+f 1/1/5 7/4/5 3/3/5
