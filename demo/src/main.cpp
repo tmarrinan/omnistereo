@@ -73,7 +73,7 @@ int32_t readFile(const char* filename, char** data_ptr);
 
 int main(int argc, char **argv)
 {
-    int width = 1920;
+    int width = 2160;
     int height = 1080;
 
     // Initialize GLFW
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
         // Print every 2 seconds
         if (current_time - previous_time >= 2.0)
         {
-            //printf("%.3lf FPS (%.3lf avg frame time)\n", (double)frame_count / (current_time - previous_time), (current_time - previous_time) / (double)frame_count);
+            printf("%.3lf FPS (%.3lf avg frame time)\n", (double)frame_count / (current_time - previous_time), (current_time - previous_time) / (double)frame_count);
 
             frame_count = 0;
             previous_time = current_time;
@@ -148,15 +148,16 @@ void init(GLFWwindow *window, App &app)
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
     glEnable(GL_FRAMEBUFFER_SRGB);
+    glPatchParameteri(GL_PATCH_VERTICES, 3);
 
     app.vertex_position_attrib = 0;
     app.vertex_normal_attrib = 1;
     app.vertex_texcoord_attrib = 2;
 
-    loadShader("color", "resrc/shaders/color", app);
-    loadShader("texture", "resrc/shaders/texture", app);
-    loadShader("nolight_tex", "resrc/shaders/nolight_tex", app);
-    loadShader("nolight_col", "resrc/shaders/nolight_col", app);
+    loadShader("color", "resrc/shaders/equirect/color_equirect", app);
+    loadShader("texture", "resrc/shaders/equirect/texture_equirect", app);
+    loadShader("nolight_tex", "resrc/shaders/equirect/nolight_tex_equirect", app);
+    loadShader("nolight_col", "resrc/shaders/equirect/nolight_col_equirect", app);
 
     app.buildings = new ObjLoader("resrc/models/buildings/buildings.obj");
     app.car = new ObjLoader("resrc/models/dodge_challenger/dodge_challenger.obj");
@@ -402,28 +403,34 @@ void render(GLFWwindow *window, App &app)
             program_name = "color";
         }
 
-        glUniform1i(app.glsl_program[program_name].uniforms["num_lights"], app.num_lights);
-        glUniform1i(app.glsl_program[program_name].uniforms["num_spotlights"], app.num_spotlights);
-        glUniform3fv(app.glsl_program[program_name].uniforms["light_ambient"], 1, glm::value_ptr(app.light_ambient));
-        glUniform3fv(app.glsl_program[program_name].uniforms["light_position[0]"], app.num_lights, app.light_position);
-        glUniform3fv(app.glsl_program[program_name].uniforms["light_color[0]"], app.num_lights, app.light_color);
-        glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_position[0]"], app.num_spotlights, app.spotlight_position);
-        glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_direction[0]"], app.num_spotlights, app.spotlight_direction);
-        glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_color[0]"], app.num_spotlights, app.spotlight_color);
-        glUniform2fv(app.glsl_program[program_name].uniforms["spotlight_attenuation[0]"], app.num_spotlights, app.spotlight_attenuation);
-        glUniform1fv(app.glsl_program[program_name].uniforms["spotlight_fov[0]"], app.num_spotlights, app.spotlight_fov);
+        if (program_name != "nolight_col")
+        {
+            glUniform1i(app.glsl_program[program_name].uniforms["num_lights"], app.num_lights);
+            glUniform1i(app.glsl_program[program_name].uniforms["num_spotlights"], app.num_spotlights);
+            glUniform3fv(app.glsl_program[program_name].uniforms["light_ambient"], 1, glm::value_ptr(app.light_ambient));
+            glUniform3fv(app.glsl_program[program_name].uniforms["light_position[0]"], app.num_lights, app.light_position);
+            glUniform3fv(app.glsl_program[program_name].uniforms["light_color[0]"], app.num_lights, app.light_color);
+            glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_position[0]"], app.num_spotlights, app.spotlight_position);
+            glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_direction[0]"], app.num_spotlights, app.spotlight_direction);
+            glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_color[0]"], app.num_spotlights, app.spotlight_color);
+            glUniform2fv(app.glsl_program[program_name].uniforms["spotlight_attenuation[0]"], app.num_spotlights, app.spotlight_attenuation);
+            glUniform1fv(app.glsl_program[program_name].uniforms["spotlight_fov[0]"], app.num_spotlights, app.spotlight_fov);
+        }
 
-        glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
-        glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
+        glUniform3fv(app.glsl_program[program_name].uniforms["camera_position"], 1, glm::value_ptr(app.camera_position));
+        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], 0.0);
+
+        //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
+        //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
         glUniformMatrix4fv(app.glsl_program[program_name].uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_model_buildings));
-        glUniformMatrix3fv(app.glsl_program[program_name].uniforms["normal_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat3_normal_buildings));
+        if (program_name != "nolight_col") glUniformMatrix3fv(app.glsl_program[program_name].uniforms["normal_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat3_normal_buildings));
 
         glUniform3fv(app.glsl_program[program_name].uniforms["material_color"], 1, glm::value_ptr(mat.color));
-        glUniform3fv(app.glsl_program[program_name].uniforms["material_specular"], 1, glm::value_ptr(mat.specular));
-        glUniform1f(app.glsl_program[program_name].uniforms["material_shininess"], mat.shininess);
+        if (program_name != "nolight_col") glUniform3fv(app.glsl_program[program_name].uniforms["material_specular"], 1, glm::value_ptr(mat.specular));
+        if (program_name != "nolight_col") glUniform1f(app.glsl_program[program_name].uniforms["material_shininess"], mat.shininess);
 
         glBindVertexArray(models[i].vertex_array);
-        glDrawElements(GL_TRIANGLES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_PATCHES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
 
@@ -456,28 +463,33 @@ void render(GLFWwindow *window, App &app)
             program_name = "color";
         }
 
-        glUniform1i(app.glsl_program[program_name].uniforms["num_lights"], app.num_lights);
-        glUniform1i(app.glsl_program[program_name].uniforms["num_spotlights"], app.num_spotlights);
-        glUniform3fv(app.glsl_program[program_name].uniforms["light_ambient"], 1, glm::value_ptr(app.light_ambient));
-        glUniform3fv(app.glsl_program[program_name].uniforms["light_position[0]"], app.num_lights, app.light_position);
-        glUniform3fv(app.glsl_program[program_name].uniforms["light_color[0]"], app.num_lights, app.light_color);
-        glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_position[0]"], app.num_spotlights, app.spotlight_position);
-        glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_direction[0]"], app.num_spotlights, app.spotlight_direction);
-        glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_color[0]"], app.num_spotlights, app.spotlight_color);
-        glUniform2fv(app.glsl_program[program_name].uniforms["spotlight_attenuation[0]"], app.num_spotlights, app.spotlight_attenuation);
-        glUniform1fv(app.glsl_program[program_name].uniforms["spotlight_fov[0]"], app.num_spotlights, app.spotlight_fov);
+        if (program_name != "nolight_tex")
+        {
+            glUniform1i(app.glsl_program[program_name].uniforms["num_lights"], app.num_lights);
+            glUniform1i(app.glsl_program[program_name].uniforms["num_spotlights"], app.num_spotlights);
+            glUniform3fv(app.glsl_program[program_name].uniforms["light_ambient"], 1, glm::value_ptr(app.light_ambient));
+            glUniform3fv(app.glsl_program[program_name].uniforms["light_position[0]"], app.num_lights, app.light_position);
+            glUniform3fv(app.glsl_program[program_name].uniforms["light_color[0]"], app.num_lights, app.light_color);
+            glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_position[0]"], app.num_spotlights, app.spotlight_position);
+            glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_direction[0]"], app.num_spotlights, app.spotlight_direction);
+            glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_color[0]"], app.num_spotlights, app.spotlight_color);
+            glUniform2fv(app.glsl_program[program_name].uniforms["spotlight_attenuation[0]"], app.num_spotlights, app.spotlight_attenuation);
+            glUniform1fv(app.glsl_program[program_name].uniforms["spotlight_fov[0]"], app.num_spotlights, app.spotlight_fov);
+        }
+        glUniform3fv(app.glsl_program[program_name].uniforms["camera_position"], 1, glm::value_ptr(app.camera_position));
+        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], 0.0);
 
-        glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
-        glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
+        //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
+        //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
         glUniformMatrix4fv(app.glsl_program[program_name].uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_model_car));
-        glUniformMatrix3fv(app.glsl_program[program_name].uniforms["normal_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat3_normal_car));
+        if (program_name != "nolight_tex") glUniformMatrix3fv(app.glsl_program[program_name].uniforms["normal_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat3_normal_car));
 
-        glUniform3fv(app.glsl_program[program_name].uniforms["material_color"], 1, glm::value_ptr(mat.color));
-        glUniform3fv(app.glsl_program[program_name].uniforms["material_specular"], 1, glm::value_ptr(mat.specular));
-        glUniform1f(app.glsl_program[program_name].uniforms["material_shininess"], mat.shininess);
+        if (program_name != "nolight_tex") glUniform3fv(app.glsl_program[program_name].uniforms["material_color"], 1, glm::value_ptr(mat.color));
+        if (program_name != "nolight_tex") glUniform3fv(app.glsl_program[program_name].uniforms["material_specular"], 1, glm::value_ptr(mat.specular));
+        if (program_name != "nolight_tex") glUniform1f(app.glsl_program[program_name].uniforms["material_shininess"], mat.shininess);
 
         glBindVertexArray(models[i].vertex_array);
-        glDrawElements(GL_TRIANGLES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_PATCHES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
 
@@ -493,13 +505,16 @@ void render(GLFWwindow *window, App &app)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, mat.texture_id);
         glUniform1i(app.glsl_program[program_name].uniforms["image"], 0);
+
+        glUniform3fv(app.glsl_program[program_name].uniforms["camera_position"], 1, glm::value_ptr(app.camera_position));
+        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], 0.0);
         
-        glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
-        glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
+        //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
+        //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
         glUniformMatrix4fv(app.glsl_program[program_name].uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_model_skybox));
         
         glBindVertexArray(models[i].vertex_array);
-        glDrawElements(GL_TRIANGLES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_PATCHES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
 
@@ -594,21 +609,33 @@ void saveImage(const char *filename, App &app)
 void loadShader(std::string key, std::string shader_filename_base, App &app)
 {
     // Read vertex and fragment shaders from file
-    char *vert_source, *frag_source;
+    char *vert_source, *frag_source, *tesc_source, *tese_source, *geom_source;
     std::string vert_filename = shader_filename_base + ".vert";
+    std::string tesc_filename = shader_filename_base + ".tesc";
+    std::string tese_filename = shader_filename_base + ".tese";
+    std::string geom_filename = shader_filename_base + ".geom";
     std::string frag_filename = shader_filename_base + ".frag";
     int32_t vert_length = readFile(vert_filename.c_str(), &vert_source);
+    int32_t tesc_length = readFile(tesc_filename.c_str(), &tesc_source);
+    int32_t tese_length = readFile(tese_filename.c_str(), &tese_source);
+    int32_t geom_length = readFile(geom_filename.c_str(), &geom_source);
     int32_t frag_length = readFile(frag_filename.c_str(), &frag_source);
 
     // Compile vetex shader
     GLuint vertex_shader = compileShader(vert_source, vert_length, GL_VERTEX_SHADER);
+    // Compile tessellation control shader
+    GLuint tess_ctrl_shader = compileShader(tesc_source, tesc_length, GL_TESS_CONTROL_SHADER);
+    // Compile tessellation evaluation shader
+    GLuint tess_eval_shader = compileShader(tese_source, tese_length, GL_TESS_EVALUATION_SHADER);
+    // Compile geometry shader
+    GLuint geometry_shader = compileShader(geom_source, geom_length, GL_GEOMETRY_SHADER);
     // Compile fragment shader
     GLuint fragment_shader = compileShader(frag_source, frag_length, GL_FRAGMENT_SHADER);
 
     // Create GPU program from the compiled vertex and fragment shaders
-    GLuint shaders[2] = {vertex_shader, fragment_shader};
+    GLuint shaders[5] = {vertex_shader, tess_ctrl_shader, tess_eval_shader, geometry_shader, fragment_shader};
     GlslProgram p;
-    p.program = createShaderProgram(shaders, 2);
+    p.program = createShaderProgram(shaders, 5);
 
     // Specify input and output attributes for the GPU program
     glBindAttribLocation(p.program, app.vertex_position_attrib, "vertex_position");

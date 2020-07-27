@@ -547,9 +547,9 @@ void loadShader(std::string shader_filename_base, App &app)
 
     // Compile vetex shader
     GLuint vertex_shader = compileShader(vert_source, vert_length, GL_VERTEX_SHADER);
-    // Compile vetex shader
+    // Compile tessellation control shader
     GLuint tess_ctrl_shader = compileShader(tesc_source, tesc_length, GL_TESS_CONTROL_SHADER);
-    // Compile vetex shader
+    // Compile tessellation evaluation shader
     GLuint tess_eval_shader = compileShader(tese_source, tese_length, GL_TESS_EVALUATION_SHADER);
     // Compile geometry shader
     GLuint geometry_shader = compileShader(geom_source, geom_length, GL_GEOMETRY_SHADER);
