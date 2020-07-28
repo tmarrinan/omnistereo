@@ -14,6 +14,8 @@
 #include "imgreader.h"
 #include "objloader.h"
 
+#define OFFSCREEN
+
 typedef struct GlslProgram {
     GLuint program;
     std::map<std::string, GLint> uniforms;
@@ -22,6 +24,8 @@ typedef struct GlslProgram {
 typedef struct App {
     bool animate;
     int animate_frame_num;
+    GLuint framebuffer;
+    GLuint framebuffer_texture;
     int framebuffer_width;
     int framebuffer_height;
     std::map<std::string, GlslProgram> glsl_program;
@@ -41,6 +45,7 @@ typedef struct App {
     glm::vec4 taillight;
     glm::vec4 headlight_dir;
     glm::vec4 taillight_dir;
+    float camera_offset;
     float camera_angle;
     glm::vec3 car_position;
     float car_orientation;
@@ -57,9 +62,10 @@ typedef struct App {
     ObjLoader *buildings;
     ObjLoader *car;
     ObjLoader *skybox;
+    std::string save_filename;
 } App;
 
-void init(GLFWwindow *window, App &app);
+void init(GLFWwindow *window, App &app, int width, int height);
 void idle(GLFWwindow *window, App &app);
 void render(GLFWwindow *window, App &app);
 void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods);
@@ -73,8 +79,14 @@ int32_t readFile(const char* filename, char** data_ptr);
 
 int main(int argc, char **argv)
 {
-    int width = 2160;
-    int height = 1080;
+    int width = 1440;
+    int height = 720;
+    std::string save_filename = "frame";
+    float camera_offset = 0.0f;
+    if (argc >= 2) width = std::stoi(argv[1]);
+    if (argc >= 3) height = std::stoi(argv[2]);
+    if (argc >= 4) save_filename = argv[3];
+    if (argc >= 5) camera_offset = std::stof(argv[4]);
 
     // Initialize GLFW
     if (!glfwInit())
@@ -88,12 +100,17 @@ int main(int argc, char **argv)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_SAMPLES, 4);
+    //glfwWindowHint(GLFW_SAMPLES, 4);
+#ifdef OFFSCREEN
+    GLFWwindow *window = glfwCreateWindow(128, 64, "OBJ Loader - Demo App", NULL, NULL);
+#else
     GLFWwindow *window = glfwCreateWindow(width, height, "OBJ Loader - Demo App", NULL, NULL);
+#endif
 
     // Make window's context current
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1); // enable v-sync
+    //glfwSwapInterval(1); // enable v-sync
+    glfwSwapInterval(0); // disable v-sync
 
     // Initialize GLAD OpenGL extension handling
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -107,12 +124,16 @@ int main(int argc, char **argv)
 
     // Initialize app
     App app;
-    init(window, app);
+    app.camera_offset = camera_offset;
+    app.save_filename = save_filename;
+    init(window, app, width, height);
 
     // Main render loop
     int frame_count = 0;
     double previous_time = glfwGetTime();
-    while (!glfwWindowShouldClose(window))
+    //while (!glfwWindowShouldClose(window))
+    app.animate = true;
+    while (!glfwWindowShouldClose(window) && app.animate_frame_num < 384)
     {
         // Measure speed
         double current_time = glfwGetTime();
@@ -133,7 +154,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void init(GLFWwindow *window, App &app)
+void init(GLFWwindow *window, App &app, int width, int height)
 {
     // save pointer to `app`
     glfwSetWindowUserPointer(window, &app);
@@ -141,10 +162,51 @@ void init(GLFWwindow *window, App &app)
     app.animate = false;
     app.animate_frame_num = 1;
 
-    // set viewport size and background color
+#ifdef OFFSCREEN
+    // texture to render into
+    glGenTextures(1, &(app.framebuffer_texture));
+    glBindTexture(GL_TEXTURE_2D, app.framebuffer_texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // depth buffer for offscreen framebuffer
+    GLuint framebuffer_depth;
+    glGenRenderbuffers(1, &framebuffer_depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, framebuffer_depth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+    // offscreen framebuffer
+    glGenFramebuffers(1, &(app.framebuffer));
+    glBindFramebuffer(GL_FRAMEBUFFER, app.framebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, app.framebuffer_texture, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, framebuffer_depth);
+
+    // set the list of draw buffers
+    GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
+    glDrawBuffers(1, draw_buffers);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    //GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    //std::cout << "FRAMEBUFFER STATUS: [" << status << "]" << std::endl;
+
+    // save framebuffer dimensions
+    app.framebuffer_width = width;
+    app.framebuffer_height = height;
+#else
+    // save framebuffer dimensions
     glfwGetFramebufferSize(window, &(app.framebuffer_width), &(app.framebuffer_height));
+    app.framebuffer = 0;
+#endif
+
+    // set viewport size and background color
     glViewport(0, 0, app.framebuffer_width, app.framebuffer_height);
-    glClearColor(0.68, 0.85, 0.95, 1.0);
+    //glClearColor(0.68, 0.85, 0.95, 1.0);
+    glClearColor(0.0, 0.004, 0.008, 1.0);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
     glEnable(GL_FRAMEBUFFER_SRGB);
@@ -362,7 +424,7 @@ void idle(GLFWwindow *window, App &app)
         app.spotlight_direction[8] = app.taillight_dir.z;
 
         char output_filename[64];
-        sprintf(output_filename, "output/frame_%04d.ppm", app.animate_frame_num);
+        sprintf(output_filename, "output/%s_%04d.ppm", app.save_filename.c_str(), app.animate_frame_num);
         saveImage(output_filename, app);
 
         app.animate_frame_num++;
@@ -377,6 +439,8 @@ void render(GLFWwindow *window, App &app)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int i;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, app.framebuffer);
 
     // Draw buildings
     std::vector<Model> models = app.buildings->getModelList();
@@ -419,7 +483,7 @@ void render(GLFWwindow *window, App &app)
         }
 
         glUniform3fv(app.glsl_program[program_name].uniforms["camera_position"], 1, glm::value_ptr(app.camera_position));
-        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], 0.0);
+        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], app.camera_offset);
 
         //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
         //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
@@ -478,7 +542,7 @@ void render(GLFWwindow *window, App &app)
             glUniform1fv(app.glsl_program[program_name].uniforms["spotlight_fov[0]"], app.num_spotlights, app.spotlight_fov);
         }
         glUniform3fv(app.glsl_program[program_name].uniforms["camera_position"], 1, glm::value_ptr(app.camera_position));
-        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], 0.0);
+        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], app.camera_offset);
 
         //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
         //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
@@ -508,7 +572,7 @@ void render(GLFWwindow *window, App &app)
         glUniform1i(app.glsl_program[program_name].uniforms["image"], 0);
 
         glUniform3fv(app.glsl_program[program_name].uniforms["camera_position"], 1, glm::value_ptr(app.camera_position));
-        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], 0.0);
+        glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], app.camera_offset);
         
         //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["projection_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_projection));
         //glUniformMatrix4fv(app.glsl_program[program_name].uniforms["view_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_view));
@@ -595,7 +659,13 @@ void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods)
 void saveImage(const char *filename, App &app)
 {
     uint8_t *pixels = new uint8_t[app.framebuffer_width * app.framebuffer_height * 3];
+#ifdef OFFSCREEN
+    glBindTexture(GL_TEXTURE_2D, app.framebuffer_texture);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+    glBindTexture(GL_TEXTURE_2D, 0);
+#else
     glReadPixels(0, 0, app.framebuffer_width, app.framebuffer_height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+#endif
 
     int i;
     FILE *fp = fopen(filename, "wb");

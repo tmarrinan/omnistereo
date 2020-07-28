@@ -41,26 +41,18 @@ void main() {
             midpoint_latitude[i] = asin(vertex_direction.y / length(vertex_direction)) * toDegrees;
         }
 
-        /*
-        // MUST BE DONE PER EDGE!
-        float min_lon = min3(longitude);
-        float max_lon = max3(longitude);
-        if (max_lon - min_lon > 180.0) { // triangle wraps around left-right edges
-            for (i = 0; i < 3; i++) {
-                longitude[i] = (longitude[i] > 0.0) ? longitude[i] - 360.0 : longitude[i];
-            }
-        }
-        */
-    
         // subdivisions increase as edge covers a larger longitudinal span
         // subdivisions increase as the edge moves further awar from the equator
         float delta_lon;
         float delta_lat;
         float max_lat;
+        float dist;
+        float scalar;
 
         // 4.0 = cube root of 64
         // 3.1748 = cube root of 32 -- check with Mark
         // 2.51984 = cube root of 16
+        // 2.8284 = square root of 8
 
         // subdivisions along v1,v2 edge
         //delta_lon = abs(longitude[1] - longitude[2]);
@@ -68,7 +60,11 @@ void main() {
         delta_lat = max(max(abs(latitude[1] - latitude[2]), abs(latitude[1] - midpoint_latitude[0])), abs(latitude[2] - midpoint_latitude[0]));
         max_lat = max(max(abs(latitude[1]), abs(latitude[2])), abs(midpoint_latitude[0]));
         //float subdivisions_12 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 1.0) * max((32.0 / 180.0) * delta_lon, 1.0);
-        float subdivisions_12 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
+        //float subdivisions_12 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
+        dist = max((16.0 / 180.0) * length(vec2(delta_lon, delta_lat)), 1.0);
+        scalar = max((2.8284 / 90.0) * max_lat, 1.0);
+        scalar *= scalar;
+        float subdivisions_12 = scalar * dist;
 
         // subdivisions along v2,v0 edge
         //delta_lon = abs(longitude[2] - longitude[0]);
@@ -76,7 +72,11 @@ void main() {
         delta_lat = max(max(abs(latitude[2] - latitude[0]), abs(latitude[2] - midpoint_latitude[1])), abs(latitude[0] - midpoint_latitude[1]));
         max_lat = max(max(abs(latitude[2]), abs(latitude[0])), abs(midpoint_latitude[1]));
         //float subdivisions_20 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 1.0) * max((32.0 / 180.0) * delta_lon, 1.0);
-        float subdivisions_20 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
+        //float subdivisions_20 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
+        dist = max((16.0 / 180.0) * length(vec2(delta_lon, delta_lat)), 1.0);
+        scalar = max((2.8284 / 90.0) * max_lat, 1.0);
+        scalar *= scalar;
+        float subdivisions_20 = scalar * dist;
 
         // subdivisions along v0,v1 edge
         //delta_lon = abs(longitude[0] - longitude[1]);
@@ -84,7 +84,11 @@ void main() {
         delta_lat = max(max(abs(latitude[0] - latitude[1]), abs(latitude[0] - midpoint_latitude[2])), abs(latitude[1] - midpoint_latitude[2]));
         max_lat = max(max(abs(latitude[0]), abs(latitude[1])), abs(midpoint_latitude[2]));
         //float subdivisions_01 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 1.0) * max((32.0 / 180.0) * delta_lon, 1.0);
-        float subdivisions_01 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
+        //float subdivisions_01 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
+        dist = max((16.0 / 180.0) * length(vec2(delta_lon, delta_lat)), 1.0);
+        scalar = max((2.8284 / 90.0) * max_lat, 1.0);
+        scalar *= scalar;
+        float subdivisions_01 = scalar * dist;
 
         // tessellation subdivisions
         float max_tessellation = clamp(ceil(max(max(subdivisions_12, subdivisions_20), subdivisions_01)), 1.0, 64.0);
