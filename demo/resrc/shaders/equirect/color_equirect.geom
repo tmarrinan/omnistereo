@@ -231,6 +231,7 @@ void projectTriangle(vec3 verts[3], out vec4 projected_verts[3]) {
 }
 
 vec4 equirectangular(vec3 vertex_position) {
+    /*
     // move camera inside original projection sphere
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
@@ -263,26 +264,27 @@ vec4 equirectangular(vec3 vertex_position) {
 
     vec4 projected_vertex_position = ortho_projection * vec4(longitude, latitude, -magnitude, 1.0);
     return projected_vertex_position;
-
+    */
     // move projection sphere with camera offset
-    //vec3 up = vec3(0.0, 1.0, 0.0);
-    //vec3 dir = normalize(vertex_position - camera_position);
-    //vec3 offset = camera_offset * cross(dir, up);
-    //vec3 cam = camera_position + offset;
+    vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 dir = normalize(vertex_position - camera_position);
+    vec3 offset = camera_offset * normalize(cross(dir, up));
+    vec3 cam = camera_position + offset;
 
-    //vec3 vertex_direction = vertex_position - cam;
-    //float magnitude = length(vertex_direction);
-    //float longitude = atan(vertex_direction.x, vertex_direction.z);
-    //float latitude = asin(vertex_direction.y / magnitude); //atan(vertex_direction.y, length(vertex_direction.zx));
+    vec3 vertex_direction = vertex_position - cam;
+    float magnitude = length(vertex_direction);
+    float longitude = -atan(vertex_direction.x, vertex_direction.z);
+    float latitude = asin(vertex_direction.y / magnitude);
 
-    //return vec4(-longitude / M_PI, 2.0 * latitude / M_PI, (magnitude - NEAR) / (FAR - NEAR), 1.0);
+    vec4 projected_vertex_position = ortho_projection * vec4(longitude, latitude, -magnitude, 1.0);
+    return projected_vertex_position;
 }
 
 
 float projectedDistance(vec3 vertex_position) {
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
-    vec3 offset = camera_offset * cross(dir, up);
+    vec3 offset = camera_offset * normalize(cross(dir, up));
     vec3 cam = camera_position + offset;
 
     vec3 vertex_direction = vertex_position - cam;
