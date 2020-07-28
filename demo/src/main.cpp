@@ -149,6 +149,7 @@ void init(GLFWwindow *window, App &app)
     glEnable(GL_MULTISAMPLE);
     glEnable(GL_FRAMEBUFFER_SRGB);
     glPatchParameteri(GL_PATCH_VERTICES, 3);
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     app.vertex_position_attrib = 0;
     app.vertex_normal_attrib = 1;

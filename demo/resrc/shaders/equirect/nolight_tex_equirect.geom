@@ -258,10 +258,10 @@ vec4 equirectangular(vec3 vertex_position) {
     // use hitp with original camera
     vec3 vertex_direction_p = hitp - camera_position;
     float magnitude_p = length(vertex_direction_p);
-    float longitude = atan(vertex_direction_p.x, vertex_direction_p.z);
+    float longitude = -atan(vertex_direction_p.x, vertex_direction_p.z);
     float latitude = asin(vertex_direction_p.y / magnitude_p);
 
-    vec4 projected_vertex_position = ortho_projection * vec4(-longitude, latitude, -magnitude, 1.0);
+    vec4 projected_vertex_position = ortho_projection * vec4(longitude, latitude, -magnitude, 1.0);
     return projected_vertex_position;
 
     // move projection sphere with camera offset
