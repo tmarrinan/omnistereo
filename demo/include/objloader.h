@@ -47,6 +47,8 @@ private:
     glm::vec3 _center;
     glm::vec3 _size;
 
+    int findGroupByName(std::vector<Group> &groups, std::string material_name);
+
 public:
     ObjLoader(const char *filename);
     ~ObjLoader();

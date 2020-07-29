@@ -14,7 +14,7 @@
 #include "imgreader.h"
 #include "objloader.h"
 
-#define OFFSCREEN
+//#define OFFSCREEN
 
 typedef struct GlslProgram {
     GLuint program;
@@ -222,7 +222,7 @@ void init(GLFWwindow *window, App &app, int width, int height)
     loadShader("nolight_tex", "resrc/shaders/equirect/nolight_tex_equirect", app);
     loadShader("nolight_col", "resrc/shaders/equirect/nolight_col_equirect", app);
 
-    app.buildings = new ObjLoader("resrc/models/buildings/buildings.obj");
+    app.buildings = new ObjLoader("resrc/models/buildings/buildings_small.obj");
     app.car = new ObjLoader("resrc/models/dodge_challenger/dodge_challenger.obj");
     app.skybox = new ObjLoader("resrc/models/skybox_night/skybox_night.obj");
 
@@ -425,7 +425,7 @@ void idle(GLFWwindow *window, App &app)
 
         char output_filename[64];
         sprintf(output_filename, "output/%s_%04d.ppm", app.save_filename.c_str(), app.animate_frame_num);
-        saveImage(output_filename, app);
+        //saveImage(output_filename, app);
 
         app.animate_frame_num++;
     }

@@ -92,11 +92,21 @@ void ObjLoader::readObjFile(const char *filename, std::vector<glm::vec3> &vertic
         // Read in new material name (indicates new group)
         else if (line.substr(0, 7) == "usemtl ")
         {
-            Group new_group;
+            std::string material_name;
             std::istringstream ss(line.substr(7));
-            ss >> new_group.material_name;
-            groups.push_back(new_group);
-            current_group = groups.size() - 1;
+            ss >> material_name;
+            int group_idx = findGroupByName(groups, material_name);
+            if (group_idx >= 0)
+            {
+                current_group = group_idx;
+            }
+            else
+            {
+                Group new_group;
+                new_group.material_name = material_name;
+                groups.push_back(new_group);
+                current_group = groups.size() - 1;
+            }
         }
         // Read in new material name
         else if (line.substr(0, 2) == "f ")
@@ -163,6 +173,7 @@ void ObjLoader::createModels(std::vector<glm::vec3> &vertices,
                              std::vector<Group> &groups)
 {
     int i, j, k;
+    int face_count = 0;
     for (i = 0; i < groups.size(); i++)
     {
         Model model;
@@ -170,6 +181,8 @@ void ObjLoader::createModels(std::vector<glm::vec3> &vertices,
 
         GLuint num_faces = groups[i].faces.size();
         GLuint num_verts = num_faces * 3;
+
+        face_count += num_faces;
 
         GLfloat *model_vertices = new GLfloat[num_verts * 3];
         GLfloat *model_normals = new GLfloat[num_verts * 3];
@@ -274,6 +287,8 @@ void ObjLoader::createModels(std::vector<glm::vec3> &vertices,
 
         _models.push_back(model);
     }
+
+    printf("OBJ: %d triangles\n", face_count);
 }
 
 void ObjLoader::loadMtl(const char *filename)
@@ -382,4 +397,17 @@ glm::vec3& ObjLoader::getCenter()
 glm::vec3& ObjLoader::getSize()
 {
     return _size;
+}
+
+int ObjLoader::findGroupByName(std::vector<Group> &groups, std::string material_name)
+{
+    int i;
+    int group_idx = -1;
+    for (i = 0; i < groups.size(); i++) {
+        if (groups[i].material_name == material_name)
+        {
+            group_idx = i;
+        }
+    }
+    return group_idx;
 }

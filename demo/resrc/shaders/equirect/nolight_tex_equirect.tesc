@@ -61,7 +61,7 @@ void main() {
         max_lat = max(max(abs(latitude[1]), abs(latitude[2])), abs(midpoint_latitude[0]));
         //float subdivisions_12 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 1.0) * max((32.0 / 180.0) * delta_lon, 1.0);
         //float subdivisions_12 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
-        dist = max((16.0 / 180.0) * length(vec2(delta_lon, delta_lat)), 1.0);
+        dist = max(0.125 * length(vec2(delta_lon, 0.5 * delta_lat)), 1.0);
         scalar = max((2.8284 / 90.0) * max_lat, 1.0);
         scalar *= scalar;
         float subdivisions_12 = scalar * dist;
@@ -73,7 +73,7 @@ void main() {
         max_lat = max(max(abs(latitude[2]), abs(latitude[0])), abs(midpoint_latitude[1]));
         //float subdivisions_20 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 1.0) * max((32.0 / 180.0) * delta_lon, 1.0);
         //float subdivisions_20 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
-        dist = max((16.0 / 180.0) * length(vec2(delta_lon, delta_lat)), 1.0);
+        dist = max(0.125 * length(vec2(delta_lon, 0.5 * delta_lat)), 1.0);
         scalar = max((2.8284 / 90.0) * max_lat, 1.0);
         scalar *= scalar;
         float subdivisions_20 = scalar * dist;
@@ -85,7 +85,7 @@ void main() {
         max_lat = max(max(abs(latitude[0]), abs(latitude[1])), abs(midpoint_latitude[2]));
         //float subdivisions_01 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 1.0) * max((32.0 / 180.0) * delta_lon, 1.0);
         //float subdivisions_01 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
-        dist = max((16.0 / 180.0) * length(vec2(delta_lon, delta_lat)), 1.0);
+        dist = max(0.125 * length(vec2(delta_lon, 0.5 * delta_lat)), 1.0);
         scalar = max((2.8284 / 90.0) * max_lat, 1.0);
         scalar *= scalar;
         float subdivisions_01 = scalar * dist;
@@ -100,10 +100,10 @@ void main() {
 
         /*
         // subdivisions
-        gl_TessLevelOuter[0] = 16.0; // subdivisions along v1,v2 edge
-        gl_TessLevelOuter[1] = 16.0; // subdivisions along v2,v0 edge
-        gl_TessLevelOuter[2] = 16.0; // subdivisions along v0,v1 edge
-        gl_TessLevelInner[0] = 8.0; // internal subdivisions
+        gl_TessLevelOuter[0] = 3.0; // subdivisions along v1,v2 edge
+        gl_TessLevelOuter[1] = 3.0; // subdivisions along v2,v0 edge
+        gl_TessLevelOuter[2] = 3.0; // subdivisions along v0,v1 edge
+        gl_TessLevelInner[0] = 3.0; // internal subdivisions
         */
 	}
 }
