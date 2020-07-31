@@ -100,17 +100,16 @@ int main(int argc, char **argv)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    //glfwWindowHint(GLFW_SAMPLES, 4);
+    glfwWindowHint(GLFW_SAMPLES, 4);
 #ifdef OFFSCREEN
     GLFWwindow *window = glfwCreateWindow(128, 64, "OBJ Loader - Demo App", NULL, NULL);
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(0); // disable v-sync
 #else
     GLFWwindow *window = glfwCreateWindow(width, height, "OBJ Loader - Demo App", NULL, NULL);
-#endif
-
-    // Make window's context current
     glfwMakeContextCurrent(window);
-    //glfwSwapInterval(1); // enable v-sync
-    glfwSwapInterval(0); // disable v-sync
+    glfwSwapInterval(0); // enable v-sync
+#endif
 
     // Initialize GLAD OpenGL extension handling
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
