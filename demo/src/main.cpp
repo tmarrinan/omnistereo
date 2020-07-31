@@ -131,9 +131,9 @@ int main(int argc, char **argv)
     // Main render loop
     int frame_count = 0;
     double previous_time = glfwGetTime();
-    //while (!glfwWindowShouldClose(window))
-    app.animate = true;
-    while (!glfwWindowShouldClose(window) && app.animate_frame_num < 384)
+    while (!glfwWindowShouldClose(window))
+    //app.animate = true;
+    //while (!glfwWindowShouldClose(window) && app.animate_frame_num < 384)
     {
         // Measure speed
         double current_time = glfwGetTime();
@@ -205,8 +205,8 @@ void init(GLFWwindow *window, App &app, int width, int height)
 
     // set viewport size and background color
     glViewport(0, 0, app.framebuffer_width, app.framebuffer_height);
-    //glClearColor(0.68, 0.85, 0.95, 1.0);
-    glClearColor(0.0, 0.004, 0.008, 1.0);
+    glClearColor(0.68, 0.85, 0.95, 1.0);
+    //glClearColor(0.0, 0.004, 0.008, 1.0);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
     glEnable(GL_FRAMEBUFFER_SRGB);
@@ -235,7 +235,7 @@ void init(GLFWwindow *window, App &app, int width, int height)
     glm::vec3 car_size = app.car->getSize();
     float scale_factor_car = 1.0f / (std::max(car_size.x, std::max(car_size.y, car_size.z)));
     glm::vec3 car_location = (-1.0f * car_center) + glm::vec3(0.0f, car_size.y / 2.0f, 1.0f);
-
+    
     app.mat4_projection = glm::perspective(60.0 * (M_PI / 180.0), (double)app.framebuffer_width/(double)app.framebuffer_height, 0.01, 1500.0);
     
     app.camera_position = glm::vec3(-15.25, 1.72, 2.375);
@@ -262,7 +262,7 @@ void init(GLFWwindow *window, App &app, int width, int height)
 
     app.mat3_normal_car = glm::inverse(app.mat4_model_car);
     app.mat3_normal_car = glm::transpose(app.mat3_normal_car);
-
+    
     // Skybox
     int i;
     app.mat4_model_skybox = glm::translate(glm::mat4(1.0), app.camera_position);
@@ -333,11 +333,28 @@ void init(GLFWwindow *window, App &app, int width, int height)
     app.spotlight_fov[1] = 0.125 * M_PI;
     app.spotlight_fov[2] = 0.51 * M_PI;
 
+    /*
+    app.camera_position = glm::vec3(0.0, 0.0, 0.0);
+
+    app.buildings = new ObjLoader("resrc/models/icosphere/icosphere.obj");
+    app.mat4_model_buildings = glm::mat4(1.0);
+    app.mat3_normal_buildings = glm::mat3(1.0);
+
+    app.light_position = new GLfloat[3 * 24];
+    app.light_color = new GLfloat[3 * 24];
+    app.num_lights = 1;
+    app.light_ambient = glm::vec3(0.05, 0.05, 0.05);
+    app.light_position[0] = 0.0; app.light_position[1] = 1.0; app.light_position[2] = 0.0;
+    app.light_color[0] = 1.0; app.light_color[1] = 1.0; app.light_color[2] = 1.0;
+    app.num_spotlights = 0;
+    */
+    
     render(window, app);
 }
 
 void idle(GLFWwindow *window, App &app)
 {
+
     if (app.animate)
     {
         //float delta_camera_angle = -0.95 * M_PI / 180.0;
@@ -441,7 +458,7 @@ void render(GLFWwindow *window, App &app)
     int i;
 
     glBindFramebuffer(GL_FRAMEBUFFER, app.framebuffer);
-
+    
     // Draw buildings
     std::vector<Model> models = app.buildings->getModelList();
     for (i = 0; i < models.size(); i++)
@@ -498,7 +515,7 @@ void render(GLFWwindow *window, App &app)
         glDrawElements(GL_PATCHES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
-
+    
     // Draw car
     models = app.car->getModelList();
     for (i = 0; i < models.size(); i++)
@@ -557,7 +574,7 @@ void render(GLFWwindow *window, App &app)
         glDrawElements(GL_PATCHES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
-
+    
     // Draw Skybox
     models = app.skybox->getModelList();
     for (i = 0; i < models.size(); i++)
@@ -582,7 +599,7 @@ void render(GLFWwindow *window, App &app)
         glDrawElements(GL_PATCHES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
-
+    
     // Show frame on screen
     glfwSwapBuffers(window);
 }

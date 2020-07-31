@@ -1,6 +1,7 @@
 #version 410 core
 
 #define M_PI 3.1415926535897932384626433832795
+#define EPSILON 0.000001
 
 layout(vertices = 3) out;
 
@@ -17,8 +18,9 @@ out vec2 model_texcoord_tesc[];
 const float toDegrees = 180.0 / M_PI;
 
 float min3(float v[3]);
+float min3(float v1, float v2, float v3);
 float max3(float v[3]);
-float max3(float v[4]);
+float max3(float v1, float v2, float v3);
 
 void main() {
     world_position_tesc[gl_InvocationID] = world_position_vert[gl_InvocationID];
@@ -34,7 +36,8 @@ void main() {
         float midpoint_latitude[3];
         for (i = 0; i < 3; i++){
             vertex_direction = world_position_vert[i] - camera_position;
-            longitude[i] = atan(vertex_direction.x, vertex_direction.z) * toDegrees;
+            longitude[i] = (abs(vertex_direction.z) < EPSILON) ? sign(vertex_direction.x) * -90.0 : -atan(vertex_direction.x, vertex_direction.z) * toDegrees;
+            //longitude[i] = -atan(vertex_direction.x, vertex_direction.z) * toDegrees;
             latitude[i] = asin(vertex_direction.y / length(vertex_direction)) * toDegrees;
 
             vertex_direction = (0.5 * (world_position_vert[(i + 1) % 3] + world_position_vert[(i + 2) % 3])) - camera_position;
@@ -63,8 +66,8 @@ void main() {
         //float subdivisions_12 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
         dist = max(0.125 * length(vec2(delta_lon, 0.5 * delta_lat)), 1.0);
         scalar = max((2.8284 / 90.0) * max_lat, 1.0);
-        scalar *= scalar;
-        float subdivisions_12 = scalar * dist;
+        scalar *= 1.0;//scalar;
+        float subdivisions_12 = clamp(ceil(scalar * dist), 1.0, 64.0);
 
         // subdivisions along v2,v0 edge
         //delta_lon = abs(longitude[2] - longitude[0]);
@@ -75,8 +78,8 @@ void main() {
         //float subdivisions_20 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
         dist = max(0.125 * length(vec2(delta_lon, 0.5 * delta_lat)), 1.0);
         scalar = max((2.8284 / 90.0) * max_lat, 1.0);
-        scalar *= scalar;
-        float subdivisions_20 = scalar * dist;
+        scalar *= 1.0;//scalar;
+        float subdivisions_20 = clamp(ceil(scalar * dist), 1.0, 64.0);
 
         // subdivisions along v0,v1 edge
         //delta_lon = abs(longitude[0] - longitude[1]);
@@ -87,17 +90,18 @@ void main() {
         //float subdivisions_01 = max(pow((3.1748 / 90.0) * max_lat, 3.0), 0.75) * max((16.0 / 90.0) * delta_lat, 1.0) * max((32.0 / 180.0) * delta_lon, 0.75);
         dist = max(0.125 * length(vec2(delta_lon, 0.5 * delta_lat)), 1.0);
         scalar = max((2.8284 / 90.0) * max_lat, 1.0);
-        scalar *= scalar;
-        float subdivisions_01 = scalar * dist;
+        scalar *= 1.0;//scalar;
+        float subdivisions_01 = clamp(ceil(scalar * dist), 1.0, 64.0);
 
         // tessellation subdivisions
-        float max_tessellation = clamp(ceil(max(max(subdivisions_12, subdivisions_20), subdivisions_01)), 1.0, 64.0);
-        gl_TessLevelOuter[0] = clamp(ceil(subdivisions_12), 1.0, 64.0);
-        gl_TessLevelOuter[1] = clamp(ceil(subdivisions_20), 1.0, 64.0);
-        gl_TessLevelOuter[2] = clamp(ceil(subdivisions_01), 1.0, 64.0);
-        gl_TessLevelInner[0] = max_tessellation;
+        float min_tessellation = min3(subdivisions_12, subdivisions_20, subdivisions_01);
+        float max_tessellation = max3(subdivisions_12, subdivisions_20, subdivisions_01);
+        float inner_tessellation = max(max(max_tessellation - 2.0, 1.0), min(max_tessellation, 3.0));
+        gl_TessLevelOuter[0] = subdivisions_12;
+        gl_TessLevelOuter[1] = subdivisions_20;
+        gl_TessLevelOuter[2] = subdivisions_01;
+        gl_TessLevelInner[0] = inner_tessellation;
         
-
         /*
         // subdivisions
         gl_TessLevelOuter[0] = 1.0; // subdivisions along v1,v2 edge
@@ -112,10 +116,14 @@ float min3(float v[3]) {
     return min(min(v[0], v[1]), v[2]);
 }
 
+float min3(float v1, float v2, float v3) {
+    return min(min(v1, v2), v3);
+}
+
 float max3(float v[3]) {
     return max(max(v[0], v[1]), v[2]);
 }
 
-float max3(float v[4]) {
-    return max(max(v[0], v[1]), v[2]);
+float max3(float v1, float v2, float v3) {
+    return max(max(v1, v2), v3);
 }

@@ -74,7 +74,8 @@ void main() {
     vec3 camera_position_v[3];
     for (i = 0; i < 3; i++) {
         vec3 dir = normalize(verts[i] - camera_position);
-        vec3 offset = camera_offset * cross(dir, up);
+        vec3 right = cross(dir, up);
+        vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
         camera_position_v[i] = camera_position + offset;
     }
 
@@ -85,14 +86,14 @@ void main() {
     vec3 weights = barycentric(v0_dir, v1_dir, v2_dir, origin);
 
     // triangle covers N or S pole
-    if (weights.x >= 0.0 && weights.y >= 0.0 && weights.z >= 0.0) {
-    //if (weights.x >= -EPSILON && weights.y >= -EPSILON && weights.z >= -EPSILON) {
+    //if (weights.x >= 0.0 && weights.y >= 0.0 && weights.z >= 0.0) {
+    if (weights.x >= -EPSILON && weights.y >= -EPSILON && weights.z >= -EPSILON) {
         // determine N vs S pole (only looking at 1 vertex)
         float projected_pole = sign(verts[0].y - camera_position_v[0].y);
 
         // pole crosses through a vertex
-        if (v0_dir == origin || v1_dir == origin || v2_dir == origin) {
-            int pole_vert = (v0_dir == origin) ? 0 : ((v1_dir == origin) ? 1 : 2);
+        if (length(v0_dir - origin) < EPSILON || length(v1_dir - origin) < EPSILON || length(v2_dir - origin) < EPSILON) {
+            int pole_vert = (length(v0_dir - origin) < EPSILON) ? 0 : ((length(v1_dir - origin) < EPSILON) ? 1 : 2);
             num_verts = 4;
             int idx;
             for (i = 0; i < 2; i++) {
@@ -268,12 +269,14 @@ vec4 equirectangular(vec3 vertex_position) {
     // move projection sphere with camera offset
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
-    vec3 offset = camera_offset * normalize(cross(dir, up));
+    vec3 right = cross(dir, up);
+    vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
     vec3 cam = camera_position + offset;
 
     vec3 vertex_direction = vertex_position - cam;
     float magnitude = length(vertex_direction);
-    float longitude = -atan(vertex_direction.x, vertex_direction.z);
+    float longitude = (abs(vertex_direction.z) < EPSILON) ? sign(vertex_direction.x) * -M_PI * 0.5 : -atan(vertex_direction.x, vertex_direction.z);
+    //float longitude = -atan(vertex_direction.x, vertex_direction.z);
     float latitude = asin(vertex_direction.y / magnitude);
 
     vec4 projected_vertex_position = ortho_projection * vec4(longitude, latitude, -magnitude, 1.0);
@@ -284,7 +287,8 @@ vec4 equirectangular(vec3 vertex_position) {
 float projectedDistance(vec3 vertex_position) {
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
-    vec3 offset = camera_offset * normalize(cross(dir, up));
+    vec3 right = cross(dir, up);
+    vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
     vec3 cam = camera_position + offset;
 
     vec3 vertex_direction = vertex_position - cam;
@@ -302,7 +306,7 @@ vec3 lerp3D(vec3 v0, vec3 v1, vec3 v2, vec3 weights) {
 }
 
 vec3 barycentric(vec3 v0, vec3 v1, vec3 v2, vec3 p) {
-/*
+    /*
     vec3 ab = v1 - v0;
     vec3 ac = v2 - v0;
 
@@ -328,28 +332,28 @@ vec3 barycentric(vec3 v0, vec3 v1, vec3 v2, vec3 p) {
     return vec3(w0, w1, w2);
 */
 
-    vec3 v0v1 = v1 - v0;
-    vec3 v0v2 = v2 - v1;
-    vec3 n = cross(v0v1, v0v2);
+    vec3 edge01 = v1 - v0;
+    vec3 edge02 = v2 - v0;
+    vec3 n = cross(edge01, edge02);
     if (length(n) < 2.0 * EPSILON) {
         return vec3(-1.0, -1.0, -1.0);
     }
     float inv_denom = 1.0 / dot(n, n);
 
-    // edge 1
-    vec3 edge1 = v2 - v1;
+    // edge 0 (opposite of v0)
+    vec3 edge0 = v2 - v1;
     vec3 vp1 = p - v1;
-    vec3 c1 = cross(edge1, vp1);
-    float u = dot(n, c1) * inv_denom;
+    vec3 c0 = cross(edge0, vp1);
+    float u = dot(n, c0) * inv_denom;
 
-    // edge 2
-    vec3 edge2 = v0 - v2;
+    // edge 1 (opposite of v1)
+    vec3 edge1 = v0 - v2;
     vec3 vp2 = p - v2;
-    vec3 c2 = cross(edge2, vp2);
-    float v = dot(n, c2) * inv_denom;
+    vec3 c1 = cross(edge1, vp2);
+    float v = dot(n, c1) * inv_denom;
 
-    // edge 0
+    // edge 2 (opposite of v2)
     float w = 1.0 - u - v;
 
-    return vec3(w, u, v);
+    return vec3(u, v, w);
 }
