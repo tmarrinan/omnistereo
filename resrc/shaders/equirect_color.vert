@@ -1,5 +1,7 @@
 #version 410 core
 
+#define EPSILON 0.000001
+
 in vec3 vertex_position;
 in vec3 vertex_normal;
 in vec2 vertex_texcoord;
@@ -18,14 +20,16 @@ out vec3 model_color_vert;
 out vec3 model_center_vert;
 
 void main() {
-    vec3 vertex_direction = point_center - camera_position;
+    vec3 vertex_direction = normalize(point_center - camera_position);
 
     vec3 up = vec3(0.0, 1.0, 0.0);
-    vec3 cam_right = normalize(cross(vertex_direction, up));
+    vec3 right = cross(vertex_direction, up);
+    vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
+    vec3 cam = camera_position + offset;
 
-    vec3 cam = camera_position + (camera_offset * cam_right);
     vertex_direction = normalize(point_center - cam);
-    cam_right = normalize(cross(vertex_direction, up));
+    right = cross(vertex_direction, up);
+    vec3 cam_right = (length(right) > EPSILON) ? normalize(right) : vec3(0.0, 0.0, 1.0);
     vec3 cam_up = cross(cam_right, vertex_direction);
 
     world_position_vert = point_center + cam_right * vertex_position.x * model_size +
