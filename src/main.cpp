@@ -535,8 +535,8 @@ void loadShader(std::string shader_filename_base, App &app)
     // Read vertex and fragment shaders from file
     char *vert_source, *tesc_source, *tese_source, *geom_source, *frag_source;
     std::string vert_filename = shader_filename_base + ".vert";
-    std::string tesc_filename = shader_filename_base + ".tcs";
-    std::string tese_filename = shader_filename_base + ".tes";
+    std::string tesc_filename = shader_filename_base + ".tesc";
+    std::string tese_filename = shader_filename_base + ".tese";
     std::string geom_filename = shader_filename_base + ".geom";
     std::string frag_filename = shader_filename_base + ".frag";
     int32_t vert_length = readFile(vert_filename.c_str(), &vert_source);

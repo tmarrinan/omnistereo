@@ -3,15 +3,27 @@
 #define M_PI 3.1415926535897932384626433832795
 #define EPSILON 0.000001
 #define NEAR 0.01
-#define FAR 1000.0
+#define FAR 500.0
+#define LEFT -M_PI
+#define RIGHT M_PI
+#define BOTTOM (-M_PI / 2.0)
+#define TOP (M_PI / 2.0)
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 12) out;
 
+in vec3 world_position_tese[];
 in vec3 world_normal_tese[];
 in vec2 model_texcoord_tese[];
 in vec3 model_color_tese[];
 in vec3 model_center_tese[];
+
+const mat4 ortho_projection = mat4(
+    vec4(2.0 / (RIGHT - LEFT), 0.0, 0.0, 0.0),
+    vec4(0.0, 2.0 / (TOP - BOTTOM), 0.0, 0.0),
+    vec4(0.0, 0.0, -2.0 / (FAR - NEAR), 0.0),
+    vec4(-(RIGHT + LEFT) / (RIGHT - LEFT), -(RIGHT + LEFT) / (TOP - BOTTOM), -(FAR + NEAR) / (FAR - NEAR), 1.0)
+);
 
 uniform vec3 camera_position;
 uniform float camera_offset;
@@ -32,15 +44,18 @@ vec3 lerp3D(vec3 v0, vec3 v1, vec3 v2, vec3 weights);
 vec3 barycentric(vec3 v0, vec3 v1, vec3 v2, vec3 p);
 
 void main() {
-    vec3 verts[3] = vec3[](gl_in[0].gl_Position.xyz, gl_in[1].gl_Position.xyz, gl_in[2].gl_Position.xyz);
+    //vec3 verts[3] = vec3[](gl_in[0].gl_Position.xyz, gl_in[1].gl_Position.xyz, gl_in[2].gl_Position.xyz);
+    vec3 verts[3] = vec3[](world_position_tese[0], world_position_tese[1], world_position_tese[2]);
 
+    /*
     // check if all three verts form a line - if so, do not render
     vec3 ab = verts[1] - verts[0];
     vec3 ac = verts[2] - verts[0];
     float triangle_area2 = length(cross(ab, ac));
-    if (triangle_area2 < EPSILON) {
+    if (triangle_area2 < 2.0 * EPSILON) {
         return;
     }
+    */
 
     // good triangle - perform equirectangular projection and find min/max longitude
     int i, j, num_verts;
@@ -62,7 +77,8 @@ void main() {
     vec3 camera_position_v[3];
     for (i = 0; i < 3; i++) {
         vec3 dir = normalize(verts[i] - camera_position);
-        vec3 offset = camera_offset * cross(dir, up);
+        vec3 right = cross(dir, up);
+        vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
         camera_position_v[i] = camera_position + offset;
     }
 
@@ -79,8 +95,8 @@ void main() {
         float projected_pole = sign(verts[0].y - camera_position_v[0].y);
 
         // pole crosses through a vertex
-        if (v0_dir == origin || v1_dir == origin || v2_dir == origin) {
-            int pole_vert = (v0_dir == origin) ? 0 : ((v1_dir == origin) ? 1 : 2);
+        if (length(v0_dir - origin) < EPSILON || length(v1_dir - origin) < EPSILON || length(v2_dir - origin) < EPSILON) {
+            int pole_vert = (length(v0_dir - origin) < EPSILON) ? 0 : ((length(v1_dir - origin) < EPSILON) ? 1 : 2);
             num_verts = 4;
             int idx;
             for (i = 0; i < 2; i++) {
@@ -226,6 +242,7 @@ void projectTriangle(vec3 verts[3], out vec4 projected_verts[3]) {
 }
 
 vec4 equirectangular(vec3 vertex_position) {
+    /*
     // move camera inside original projection sphere
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
@@ -249,55 +266,45 @@ vec4 equirectangular(vec3 vertex_position) {
     float test = (b * b) - (4.0 * a * c);
     float u = (-b + sqrt(test)) / (2.0 * a);
     vec3 hitp = p1 + u * (p2 - p1);
-    
-
-    /*
-    // SSA TRIANGLE CALCULATION METHOD
-    float radius = 50.0 * abs(camera_offset);
-    vec3 d = vertex_position - cam;
-    float magnitude = length(d);
-    vec3 vertex_dir = normalize(d);
-    float theta = acos(dot(vertex_dir, normalize(-offset)));
-    float sin_theta = sin(theta);
-    float phi = asin((abs(camera_offset) * sin_theta) / radius);
-    float alpha = M_PI - theta - phi;
-    float a = (radius * sin(alpha)) / sin_theta;
-    vec3 hitp = cam + (a * vertex_dir); 
-    */
 
     // use hitp with original camera
     vec3 vertex_direction_p = hitp - camera_position;
     float magnitude_p = length(vertex_direction_p);
-    float longitude = atan(vertex_direction_p.x, vertex_direction_p.z);
-    float latitude = asin(vertex_direction_p.y / magnitude_p); //atan(vertex_direction_p.y, length(vertex_direction_p.zx));
+    float longitude = -atan(vertex_direction_p.x, vertex_direction_p.z);
+    float latitude = asin(vertex_direction_p.y / magnitude_p);
 
-    return vec4(-longitude / M_PI, 2.0 * latitude / M_PI, (magnitude - NEAR) / (FAR - NEAR), 1.0);
-
-    /*
+    vec4 projected_vertex_position = ortho_projection * vec4(longitude, latitude, -magnitude, 1.0);
+    return projected_vertex_position;
+    */
     // move projection sphere with camera offset
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
-    vec3 offset = camera_offset * cross(dir, up);
+    vec3 right = cross(dir, up);
+    vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
     vec3 cam = camera_position + offset;
 
     vec3 vertex_direction = vertex_position - cam;
     float magnitude = length(vertex_direction);
-    float longitude = atan(vertex_direction.x, vertex_direction.z);
-    float latitude = asin(vertex_direction.y / magnitude); //atan(vertex_direction.y, length(vertex_direction.zx));
+    float longitude = (abs(vertex_direction.z) < EPSILON) ? sign(vertex_direction.x) * -M_PI * 0.5 : -atan(vertex_direction.x, vertex_direction.z);
+    //float longitude = -atan(vertex_direction.x, vertex_direction.z);
+    float latitude = asin(vertex_direction.y / magnitude);
 
-    return vec4(-longitude / M_PI, 2.0 * latitude / M_PI, (magnitude - NEAR) / (FAR - NEAR), 1.0);
-    */
+    vec4 projected_vertex_position = ortho_projection * vec4(longitude, latitude, -magnitude, 1.0);
+    return projected_vertex_position;
 }
+
 
 float projectedDistance(vec3 vertex_position) {
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
-    vec3 offset = camera_offset * cross(dir, up);
+    vec3 right = cross(dir, up);
+    vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
     vec3 cam = camera_position + offset;
 
     vec3 vertex_direction = vertex_position - cam;
     float magnitude = length(vertex_direction);
-    return (magnitude - NEAR) / (FAR - NEAR);
+
+    return (2.0 * magnitude / (FAR - NEAR)) - ((FAR + NEAR) / (FAR - NEAR));
 }
 
 vec2 lerp3D(vec2 v0, vec2 v1, vec2 v2, vec3 weights) {
@@ -309,11 +316,12 @@ vec3 lerp3D(vec3 v0, vec3 v1, vec3 v2, vec3 weights) {
 }
 
 vec3 barycentric(vec3 v0, vec3 v1, vec3 v2, vec3 p) {
+    /*
     vec3 ab = v1 - v0;
     vec3 ac = v2 - v0;
 
     float triangle_area2 = length(cross(ab, ac));
-    if (triangle_area2 < EPSILON) {
+    if (triangle_area2 < 2.0 * EPSILON) {
         return vec3(-1.0, -1.0, -1.0);
     }
 
@@ -332,4 +340,30 @@ vec3 barycentric(vec3 v0, vec3 v1, vec3 v2, vec3 p) {
     float w0 = 1.0 - w1 - w2;
 
     return vec3(w0, w1, w2);
+*/
+
+    vec3 edge01 = v1 - v0;
+    vec3 edge02 = v2 - v0;
+    vec3 n = cross(edge01, edge02);
+    if (length(n) < 2.0 * EPSILON) {
+        return vec3(-1.0, -1.0, -1.0);
+    }
+    float inv_denom = 1.0 / dot(n, n);
+
+    // edge 0 (opposite of v0)
+    vec3 edge0 = v2 - v1;
+    vec3 vp1 = p - v1;
+    vec3 c0 = cross(edge0, vp1);
+    float u = dot(n, c0) * inv_denom;
+
+    // edge 1 (opposite of v1)
+    vec3 edge1 = v0 - v2;
+    vec3 vp2 = p - v2;
+    vec3 c1 = cross(edge1, vp2);
+    float v = dot(n, c1) * inv_denom;
+
+    // edge 2 (opposite of v2)
+    float w = 1.0 - u - v;
+
+    return vec3(u, v, w);
 }
