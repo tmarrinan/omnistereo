@@ -149,7 +149,7 @@ int main(int argc, char **argv)
     double previous_time = glfwGetTime();
     int frame_count = 0;
     render(window, app);
-    while (!glfwWindowShouldClose(window) && frame_idx <= 800)
+    while (!glfwWindowShouldClose(window) && frame_idx <= 1050)
     //while (!glfwWindowShouldClose(window))
     {
         // Save image
@@ -427,7 +427,7 @@ void idle(GLFWwindow *window, App &app)
 {
     // update camera
     glm::vec3 camera_move_direction = glm::vec3(0.98348, -0.03766, 0.17702);
-    app.scene.camera_pos = app.scene.camera_pos + (-0.25f * camera_move_direction);
+    app.scene.camera_pos = app.scene.camera_pos + (-0.2f * camera_move_direction);
     //app.scene.camera_pos[0] += 0.25;
     glUseProgram(app.program);
     glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
