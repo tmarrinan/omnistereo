@@ -278,9 +278,15 @@ vec4 equirectangular(vec3 vertex_position) {
     */
     // move projection sphere with camera offset
     vec3 up = vec3(0.0, 1.0, 0.0);
-    vec3 dir = normalize(vertex_position - camera_position);
+    vec3 dir = vertex_position - camera_position;
     vec3 right = cross(dir, up);
-    vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
+
+    // reduce ocular offset linearly starting at M_PI / 8.0 radians (22.5 degrees) away from a pole
+    float abs_latitude = abs(asin(dir.y / length(dir)));
+    float adjusted_offset = min(1.0 - (8.0 * (abs_latitude - 0.375)), 1.0) * camera_offset;
+
+    //vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
+    vec3 offset = (length(right) > EPSILON) ? adjusted_offset * normalize(right) : vec3(0.0, 0.0, 0.0);
     vec3 cam = camera_position + offset;
 
     vec3 vertex_direction = vertex_position - cam;
