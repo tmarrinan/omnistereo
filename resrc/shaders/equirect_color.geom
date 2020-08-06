@@ -282,8 +282,13 @@ vec4 equirectangular(vec3 vertex_position) {
     vec3 right = cross(dir, up);
 
     // reduce ocular offset linearly starting at M_PI / 6.0 radians (30 degrees) away from a pole
-    float abs_latitude = abs(asin(dir.y / length(dir))) / M_PI;
-    float adjusted_offset = clamp(1.0 - (6.0 * (abs_latitude - 0.333333)), 0.0, 1.0) * camera_offset;
+    // TODO: try falloff between 30 - 10, 0 stereo from 10 to pole. Maybe quadratic? 
+    float inclination = abs(asin(dir.y / length(dir))) / M_PI;
+    //float adjusted_offset = clamp(1.0 - (6.0 * (inclination - 0.333333)), 0.0, 1.0) * camera_offset;
+    // 1/6 = 0.1666667 1/18 = 0.055556, range = [0.333333, 0.444444]
+    float adjust_start = 0.5 - (1.0 / 6.0); // 30 degrees from pole
+    float adjust_end = 0.5 - (1.0 / 18.0); // 10 degrees from pole
+    float adjusted_offset = clamp(1.0 - ((inclination - adjust_start) / (adjust_end - adjust_start)), 0.0, 1.0);
 
     //vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
     vec3 offset = (length(right) > EPSILON) ? adjusted_offset * normalize(right) : vec3(0.0, 0.0, 0.0);
