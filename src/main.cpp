@@ -141,6 +141,7 @@ int main(int argc, char **argv)
     App app;
     //init(window, width, height, "resrc/scenes/demo_scene.json", app);
     init(window, width, height, camera_offset, "resrc/ScanLook_Vehicle07_scene.txt", app);
+    //init(window, width, height, camera_offset, "resrc/box4rawparticles_scene.txt", app);
 
     int frame_idx = 1;
     char output_filename[128];
@@ -385,8 +386,13 @@ void initializeScene(const char *scene_filename, App &app)
 
     glm::vec3 camera_move_direction = glm::vec3(0.98348, -0.03766, 0.17702);
     app.scene.camera_pos = app.scene.camera_pos - (-75.0f * camera_move_direction);
-    //app.scene.camera_pos[0] -= 75.0;
-    //app.scene.camera_pos[0] -= 5.0;
+
+    glm::vec3 f265 = app.scene.camera_pos + ((-0.2f * 265.0f) * camera_move_direction);
+    printf("frame 265 location: %.4f, %.4f, %.4f\n", f265[0], f265[1], f265[2]);
+    // frame 265
+    // move (260.6222, -9.9799, 46.9103)
+
+    app.scene.camera_pos = app.scene.camera_pos + ((-0.2f * 264.0f) * camera_move_direction);
 }
 
 void initializeTextures(App &app) {
@@ -419,6 +425,7 @@ void initializeUniforms(float camera_offset, App &app)
     glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
     glUniform1f(app.uniforms["camera_offset"], camera_offset);
     glUniform1f(app.uniforms["model_size"], 0.4);
+    //glUniform1f(app.uniforms["model_size"], 0.08);
 
     glUseProgram(0);
 }
