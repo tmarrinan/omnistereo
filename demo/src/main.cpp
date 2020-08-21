@@ -292,8 +292,8 @@ void init(GLFWwindow *window, App &app, int width, int height)
     app.mat4_model_target2 = glm::scale(app.mat4_model_target2, glm::vec3(0.25, 0.25, 0.25));
     app.mat4_model_target3 = glm::translate(glm::mat4(1.0), glm::vec3(-12.50, 12.00, -8.50));
     app.mat4_model_target3 = glm::scale(app.mat4_model_target3, glm::vec3(0.5, 0.5, 0.5));
-    app.mat4_model_target4 = glm::translate(glm::mat4(1.0), glm::vec3(-14.25, 12.00, 1.75));
-    app.mat4_model_target4 = glm::scale(app.mat4_model_target4, glm::vec3(0.5, 0.5, 0.5));
+    app.mat4_model_target4 = glm::translate(glm::mat4(1.0), glm::vec3(-15.25, 5.00, 1.75));
+    app.mat4_model_target4 = glm::scale(app.mat4_model_target4, glm::vec3(0.35, 0.35, 0.35));
     app.mat3_normal_target = glm::mat3(1.0);
 
     // Lights
@@ -629,7 +629,7 @@ void render(GLFWwindow *window, App &app)
     glUseProgram(app.glsl_program[program_name].program);
 
     GLfloat target_red[3] = {0.959, 0.100, 0.050};
-    GLfloat target_blue[3] = {0.150, 0.350, 0.800};
+    GLfloat target_green[3] = {0.150, 0.750, 0.200};
     GLfloat target_specular[3] = {0.0, 0.0, 0.0};
     GLfloat target_light_position[6] = {-14.5, 2.5, -2.5, -15.75, 1.0, 1.0};
     GLfloat target_light_color[6] = {0.8, 0.8, 0.8, 0.4, 0.4, 0.4};
@@ -661,7 +661,7 @@ void render(GLFWwindow *window, App &app)
     glDrawElements(GL_PATCHES, app.sphere_face_index_count, GL_UNSIGNED_SHORT, 0);
 
     glUniformMatrix4fv(app.glsl_program[program_name].uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_model_target4));
-    glUniform3fv(app.glsl_program[program_name].uniforms["material_color"], 1, target_blue);
+    glUniform3fv(app.glsl_program[program_name].uniforms["material_color"], 1, target_green);
     glDrawElements(GL_PATCHES, app.sphere_face_index_count, GL_UNSIGNED_SHORT, 0);
 
     glBindVertexArray(0);
