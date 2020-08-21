@@ -282,15 +282,16 @@ vec4 equirectangular(vec3 vertex_position) {
     vec3 right = cross(dir, up);
 
     // reduce ocular offset linearly starting at M_PI / 6.0 radians (30 degrees) away from a pole
-    // TODO: try falloff between 30 - 15, 0 stereo from 15 to pole. Maybe quadratic? 
     float inclination = abs(asin(dir.y / length(dir))) / M_PI;
-    float adjust_start = 0.5 - (1.0 / 6.0); // 30 degrees from pole
-    float adjust_end = 0.5 - (1.0 / 12.0); // 15 degrees from pole
+    //float adjust_start = 0.5 - (1.0 / 6.0); // 30 degrees from pole
+    //float adjust_end = 0.5 - (1.0 / 12.0); // 15 degrees from pole
+    float adjust_start = 0.5 - (1.0 / 12.0); // 15 degrees from pole
+    float adjust_end = 0.5; // at the pole
     float adjust_coeff = clamp((inclination - adjust_start) / (adjust_end - adjust_start), 0.0, 1.0);
     // linear
-    //float adjusted_offset = (1.0 - adjust_coeff) * camera_offset;
-    // cos
-    float adjusted_offset = cos(adjust_coeff * 0.5 * M_PI) * camera_offset;
+    float adjusted_offset = (1.0 - adjust_coeff) * camera_offset;
+    // cubic
+    //float adjusted_offset = pow(1.0 - adjust_coeff, 3.0) * camera_offset;
 
     //vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
     vec3 offset = (length(right) > EPSILON) ? adjusted_offset * normalize(right) : vec3(0.0, 0.0, 0.0);
@@ -311,16 +312,18 @@ float projectedDistance(vec3 vertex_position) {
     vec3 up = vec3(0.0, 1.0, 0.0);
     vec3 dir = normalize(vertex_position - camera_position);
     vec3 right = cross(dir, up);
-    
+
     float inclination = abs(asin(dir.y / length(dir))) / M_PI;
-    float adjust_start = 0.5 - (1.0 / 6.0); // 30 degrees from pole
-    float adjust_end = 0.5 - (1.0 / 12.0); // 15 degrees from pole
+    //float adjust_start = 0.5 - (1.0 / 6.0); // 30 degrees from pole
+    //float adjust_end = 0.5 - (1.0 / 12.0); // 15 degrees from pole
+    float adjust_start = 0.5 - (1.0 / 12.0); // 15 degrees from pole
+    float adjust_end = 0.5; // at the pole
     float adjust_coeff = clamp((inclination - adjust_start) / (adjust_end - adjust_start), 0.0, 1.0);
     // linear
-    //float adjusted_offset = (1.0 - adjust_coeff) * camera_offset;
-    // cos
-    float adjusted_offset = cos(adjust_coeff * 0.5 * M_PI) * camera_offset;
-    
+    float adjusted_offset = (1.0 - adjust_coeff) * camera_offset;
+    // cubic
+    //float adjusted_offset = pow(1.0 - adjust_coeff, 3.0) * camera_offset;
+
     //vec3 offset = (length(right) > EPSILON) ? camera_offset * normalize(right) : vec3(0.0, 0.0, camera_offset);
     vec3 offset = (length(right) > EPSILON) ? adjusted_offset * normalize(right) : vec3(0.0, 0.0, 0.0);
     vec3 cam = camera_position + offset;
