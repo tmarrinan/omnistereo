@@ -39,6 +39,11 @@ typedef struct App {
     glm::mat4 mat4_model_car;
     glm::mat3 mat3_normal_car;
     glm::mat4 mat4_model_skybox;
+    glm::mat4 mat4_model_target1;
+    glm::mat4 mat4_model_target2;
+    glm::mat4 mat4_model_target3;
+    glm::mat4 mat4_model_target4;
+    glm::mat3 mat3_normal_target;
     glm::vec3 camera_position;
     glm::vec4 left_headlight;
     glm::vec4 right_headlight;
@@ -62,6 +67,8 @@ typedef struct App {
     ObjLoader *buildings;
     ObjLoader *car;
     ObjLoader *skybox;
+    GLuint sphere_vertex_array;
+    GLuint sphere_face_index_count;
     std::string save_filename;
 } App;
 
@@ -76,6 +83,7 @@ GLuint createShaderProgram(GLuint shaders[], uint num_shaders);
 void linkShaderProgram(GLuint program);
 std::string shaderTypeToString(GLenum type);
 int32_t readFile(const char* filename, char** data_ptr);
+GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
 
 int main(int argc, char **argv)
 {
@@ -130,8 +138,8 @@ int main(int argc, char **argv)
     // Main render loop
     int frame_count = 0;
     double previous_time = glfwGetTime();
-    while (!glfwWindowShouldClose(window))
     //app.animate = true;
+    while (!glfwWindowShouldClose(window))
     //while (!glfwWindowShouldClose(window) && app.animate_frame_num < 384)
     {
         // Measure speed
@@ -204,8 +212,8 @@ void init(GLFWwindow *window, App &app, int width, int height)
 
     // set viewport size and background color
     glViewport(0, 0, app.framebuffer_width, app.framebuffer_height);
-    glClearColor(0.68, 0.85, 0.95, 1.0);
-    //glClearColor(0.0, 0.004, 0.008, 1.0);
+    //glClearColor(0.68, 0.85, 0.95, 1.0);
+    glClearColor(0.0, 0.004, 0.008, 1.0);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
     glEnable(GL_FRAMEBUFFER_SRGB);
@@ -224,6 +232,7 @@ void init(GLFWwindow *window, App &app, int width, int height)
     app.buildings = new ObjLoader("resrc/models/buildings/buildings_small.obj");
     app.car = new ObjLoader("resrc/models/dodge_challenger/dodge_challenger.obj");
     app.skybox = new ObjLoader("resrc/models/skybox_night/skybox_night.obj");
+    app.sphere_vertex_array = createSphereVao(app.vertex_position_attrib, app.vertex_normal_attrib, app.vertex_texcoord_attrib, &(app.sphere_face_index_count));
 
     glm::vec3 buildings_center = app.buildings->getCenter();
     glm::vec3 buildings_size = app.buildings->getSize();
@@ -237,7 +246,7 @@ void init(GLFWwindow *window, App &app, int width, int height)
     
     app.mat4_projection = glm::perspective(60.0 * (M_PI / 180.0), (double)app.framebuffer_width/(double)app.framebuffer_height, 0.01, 1500.0);
     
-    app.camera_position = glm::vec3(-15.25, 1.72, 2.375);
+    app.camera_position = glm::vec3(-15.75, 1.72, 1.75);
     app.camera_angle = 0.75 * M_PI;
     glm::vec3 target = app.camera_position + glm::vec3(cos(app.camera_angle), 0.0, sin(app.camera_angle));
     app.mat4_view = glm::lookAt(app.camera_position, target, glm::vec3(0.0, 1.0, 0.0));
@@ -265,7 +274,7 @@ void init(GLFWwindow *window, App &app, int width, int height)
     // Skybox
     int i;
     app.mat4_model_skybox = glm::translate(glm::mat4(1.0), app.camera_position);
-    app.mat4_model_skybox = glm::scale(app.mat4_model_skybox, glm::vec3(200.0, 200.0, 200.0));
+    app.mat4_model_skybox = glm::scale(app.mat4_model_skybox, glm::vec3(400.0, 400.0, 400.0));
     std::vector<Model> models = app.skybox->getModelList();
     for (i = 0; i < models.size(); i++)
     {
@@ -276,6 +285,18 @@ void init(GLFWwindow *window, App &app, int width, int height)
     }
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    // Targets
+    app.mat4_model_target1 = glm::translate(glm::mat4(1.0), glm::vec3(-16.00, 0.15, 1.12));
+    app.mat4_model_target1 = glm::scale(app.mat4_model_target1, glm::vec3(0.25, 0.25, 0.25));
+    app.mat4_model_target2 = glm::translate(glm::mat4(1.0), glm::vec3(-16.00, 0.15, 4.00));
+    app.mat4_model_target2 = glm::scale(app.mat4_model_target2, glm::vec3(0.25, 0.25, 0.25));
+    app.mat4_model_target3 = glm::translate(glm::mat4(1.0), glm::vec3(-12.50, 12.00, -8.50));
+    app.mat4_model_target3 = glm::scale(app.mat4_model_target3, glm::vec3(0.5, 0.5, 0.5));
+    app.mat4_model_target4 = glm::translate(glm::mat4(1.0), glm::vec3(-14.25, 12.00, 1.75));
+    app.mat4_model_target4 = glm::scale(app.mat4_model_target4, glm::vec3(0.5, 0.5, 0.5));
+    app.mat3_normal_target = glm::mat3(1.0);
+
+    // Lights
     app.light_position = new GLfloat[3 * 24];
     app.light_color = new GLfloat[3 * 24];
     app.num_lights = 18;
@@ -353,9 +374,9 @@ void init(GLFWwindow *window, App &app, int width, int height)
 
 void idle(GLFWwindow *window, App &app)
 {
-
     if (app.animate)
     {
+        
         //float delta_camera_angle = -0.95 * M_PI / 180.0;
         float delta_camera_angle = -0.76 * M_PI / 180.0;
 
@@ -438,10 +459,10 @@ void idle(GLFWwindow *window, App &app)
         app.spotlight_direction[6] = app.taillight_dir.x;
         app.spotlight_direction[7] = app.taillight_dir.y;
         app.spotlight_direction[8] = app.taillight_dir.z;
-
+        
         char output_filename[64];
         sprintf(output_filename, "output/%s_%04d.ppm", app.save_filename.c_str(), app.animate_frame_num);
-        //saveImage(output_filename, app);
+        saveImage(output_filename, app);
 
         app.animate_frame_num++;
     }
@@ -458,6 +479,8 @@ void render(GLFWwindow *window, App &app)
 
     glBindFramebuffer(GL_FRAMEBUFFER, app.framebuffer);
     
+    GLfloat light_attenuation[2] = {1.5, 15.0};
+
     // Draw buildings
     std::vector<Model> models = app.buildings->getModelList();
     for (i = 0; i < models.size(); i++)
@@ -491,6 +514,7 @@ void render(GLFWwindow *window, App &app)
             glUniform3fv(app.glsl_program[program_name].uniforms["light_ambient"], 1, glm::value_ptr(app.light_ambient));
             glUniform3fv(app.glsl_program[program_name].uniforms["light_position[0]"], app.num_lights, app.light_position);
             glUniform3fv(app.glsl_program[program_name].uniforms["light_color[0]"], app.num_lights, app.light_color);
+            glUniform2fv(app.glsl_program[program_name].uniforms["pointlight_attenuation"], 1, light_attenuation);
             glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_position[0]"], app.num_spotlights, app.spotlight_position);
             glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_direction[0]"], app.num_spotlights, app.spotlight_direction);
             glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_color[0]"], app.num_spotlights, app.spotlight_color);
@@ -551,6 +575,7 @@ void render(GLFWwindow *window, App &app)
             glUniform3fv(app.glsl_program[program_name].uniforms["light_ambient"], 1, glm::value_ptr(app.light_ambient));
             glUniform3fv(app.glsl_program[program_name].uniforms["light_position[0]"], app.num_lights, app.light_position);
             glUniform3fv(app.glsl_program[program_name].uniforms["light_color[0]"], app.num_lights, app.light_color);
+            glUniform2fv(app.glsl_program[program_name].uniforms["pointlight_attenuation"], 1, light_attenuation);
             glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_position[0]"], app.num_spotlights, app.spotlight_position);
             glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_direction[0]"], app.num_spotlights, app.spotlight_direction);
             glUniform3fv(app.glsl_program[program_name].uniforms["spotlight_color[0]"], app.num_spotlights, app.spotlight_color);
@@ -598,7 +623,49 @@ void render(GLFWwindow *window, App &app)
         glDrawElements(GL_PATCHES, models[i].face_index_count, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
-    
+
+    // Draw targets
+    std::string program_name = "color";
+    glUseProgram(app.glsl_program[program_name].program);
+
+    GLfloat target_red[3] = {0.959, 0.100, 0.050};
+    GLfloat target_blue[3] = {0.150, 0.350, 0.800};
+    GLfloat target_specular[3] = {0.0, 0.0, 0.0};
+    GLfloat target_light_position[6] = {-14.5, 2.5, -2.5, -15.75, 1.0, 1.0};
+    GLfloat target_light_color[6] = {0.8, 0.8, 0.8, 0.4, 0.4, 0.4};
+    GLfloat target_light_attenuation[2] = {10.0, 50.0};
+
+    glUniform1i(app.glsl_program[program_name].uniforms["num_lights"], 2);
+    glUniform1i(app.glsl_program[program_name].uniforms["num_spotlights"], 0);
+    glUniform3fv(app.glsl_program[program_name].uniforms["light_ambient"], 1, glm::value_ptr(app.light_ambient));
+    glUniform3fv(app.glsl_program[program_name].uniforms["light_position[0]"], 2, target_light_position);
+    glUniform3fv(app.glsl_program[program_name].uniforms["light_color[0]"], 2, target_light_color);
+    glUniform2fv(app.glsl_program[program_name].uniforms["pointlight_attenuation"], 1, target_light_attenuation);
+    glUniform3fv(app.glsl_program[program_name].uniforms["camera_position"], 1, glm::value_ptr(app.camera_position));
+    glUniform1f(app.glsl_program[program_name].uniforms["camera_offset"], app.camera_offset);
+
+    glUniformMatrix3fv(app.glsl_program[program_name].uniforms["normal_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat3_normal_target));
+    glUniform3fv(app.glsl_program[program_name].uniforms["material_color"], 1, target_red);
+    glUniform3fv(app.glsl_program[program_name].uniforms["material_specular"], 1, target_specular);
+    glUniform1f(app.glsl_program[program_name].uniforms["material_shininess"], 1.0f);
+
+    glBindVertexArray(app.sphere_vertex_array);
+
+    glUniformMatrix4fv(app.glsl_program[program_name].uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_model_target1));
+    glDrawElements(GL_PATCHES, app.sphere_face_index_count, GL_UNSIGNED_SHORT, 0);
+
+    glUniformMatrix4fv(app.glsl_program[program_name].uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_model_target2));
+    glDrawElements(GL_PATCHES, app.sphere_face_index_count, GL_UNSIGNED_SHORT, 0);
+
+    glUniformMatrix4fv(app.glsl_program[program_name].uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_model_target3));
+    glDrawElements(GL_PATCHES, app.sphere_face_index_count, GL_UNSIGNED_SHORT, 0);
+
+    glUniformMatrix4fv(app.glsl_program[program_name].uniforms["model_matrix"], 1, GL_FALSE, glm::value_ptr(app.mat4_model_target4));
+    glUniform3fv(app.glsl_program[program_name].uniforms["material_color"], 1, target_blue);
+    glDrawElements(GL_PATCHES, app.sphere_face_index_count, GL_UNSIGNED_SHORT, 0);
+
+    glBindVertexArray(0);
+
     // Show frame on screen
     glfwSwapBuffers(window);
 }
@@ -873,4 +940,130 @@ int32_t readFile(const char* filename, char** data_ptr)
     fclose(fp);
 
     return fsize;
+}
+
+GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count)
+{
+    // Create a new Vertex Array Object
+    GLuint vertex_array;
+    glGenVertexArrays(1, &vertex_array);
+    // Set newly created Vertex Array Object as the active one we are modifying
+    glBindVertexArray(vertex_array);
+
+    // Calculate vertices, normals, texture coordinate, and faces
+    int i, j;
+    int slices = 24;
+    int stacks = 12;
+    int num_verts = (slices + 1) * (stacks + 1);
+    int num_faces = 2 * slices * stacks;
+    int vert_idx = 0;
+    int face_idx = 0;
+    double phi = 0;
+    double delta_phi = 2.0 * M_PI / (double)slices;
+    double delta_theta = -M_PI / (double)stacks;
+    GLfloat *vertices = new GLfloat[num_verts * 3];
+    GLfloat *normals = new GLfloat[num_verts * 3];
+    GLfloat *texcoords = new GLfloat[num_verts * 2];
+    for (i = 0; i <= slices; i++) {
+        double cos_phi = cos(phi);
+        double sin_phi = sin(phi);
+        double theta = M_PI / 2.0;
+        for (j = 0; j <= stacks; j++) {
+            double cos_theta = cos(theta);
+            double sin_theta = sin(theta);
+            double x = cos_theta * cos_phi;
+            double y = sin_theta;
+            double z = cos_theta * -sin_phi;
+            vertices[3 * vert_idx] = x / 2.0;
+            vertices[3 * vert_idx + 1] = y / 2.0;
+            vertices[3 * vert_idx + 2] = z / 2.0;
+            normals[3 * vert_idx] = x;
+            normals[3 * vert_idx + 1] = y;
+            normals[3 * vert_idx + 2] = z;
+            texcoords[2 * vert_idx] = (double)i / (double)slices;
+            texcoords[2 * vert_idx + 1] = 1.0 - (double)j / (double)stacks;
+            theta += delta_theta;
+            vert_idx++;
+        }
+        phi += delta_phi;
+    }
+    GLushort *indices = new GLushort[num_faces * 3];
+    for (i = 0; i < slices; i++) {
+        int k1 = i * (stacks + 1);
+        int k2 = (i + 1) * (stacks + 1);
+        for (j = 0; j < stacks; j++) {
+            indices[3 * face_idx] = k1;
+            indices[3 * face_idx + 1] = k1 + 1;
+            indices[3 * face_idx + 2] = k2;
+            face_idx++;
+            indices[3 * face_idx] = k1 + 1;
+            indices[3 * face_idx + 1] = k2 + 1;
+            indices[3 * face_idx + 2] = k2;
+            face_idx++;
+            k1++;
+            k2++;
+        }
+    }
+
+    // Create buffer to store vertex positions (3D points)
+    GLuint vertex_position_buffer;
+    glGenBuffers(1, &vertex_position_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_position_buffer);
+    // Store array of vertex positions in the vertex_position_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_verts * sizeof(GLfloat), vertices, GL_STATIC_DRAW);
+    // Enable position_attrib in our GPU program
+    glEnableVertexAttribArray(position_attrib);
+    // Attach vertex_position_buffer to the position_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(position_attrib, 3, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store vertex normals (vector pointing perpendicular to surface)
+    GLuint vertex_normal_buffer;
+    glGenBuffers(1, &vertex_normal_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_normal_buffer);
+    // Store array of vertex normals in the vertex_normal_buffer
+    glBufferData(GL_ARRAY_BUFFER, 3 * num_verts * sizeof(GLfloat), normals, GL_STATIC_DRAW);
+    // Enable normal_attrib in our GPU program
+    glEnableVertexAttribArray(normal_attrib);
+    // Attach vertex_normal_buffer to the normal_attrib
+    // (as 3-component floating point values)
+    glVertexAttribPointer(normal_attrib, 3, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store texture coordinates (2D coordinates for mapping images to the surface)
+    GLuint vertex_texcoord_buffer;
+    glGenBuffers(1, &vertex_texcoord_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_texcoord_buffer);
+    // Store array of vertex texture coordinates in the vertex_texcoord_buffer
+    glBufferData(GL_ARRAY_BUFFER, 2 * num_verts * sizeof(GLfloat), texcoords, GL_STATIC_DRAW);
+    // Enable texcoord_attrib in our GPU program
+    glEnableVertexAttribArray(texcoord_attrib);
+    // Attach vertex_texcoord_buffer to the texcoord_attrib
+    // (as 2-component floating point values)
+    glVertexAttribPointer(texcoord_attrib, 2, GL_FLOAT, false, 0, 0);
+
+    // Create buffer to store faces of the triangle
+    GLuint vertex_index_buffer;
+    glGenBuffers(1, &vertex_index_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertex_index_buffer);
+    // Store array of vertex indices in the vertex_index_buffer
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * num_faces * sizeof(GLushort), indices, GL_STATIC_DRAW);
+
+    // No longer modifying our Vertex Array Object, so deselect
+    glBindVertexArray(0);
+
+    // Delete arrays
+    delete[] vertices;
+    delete[] normals;
+    delete[] texcoords;
+    delete[] indices;
+
+    // Store the number of vertices used for entire model (number of faces * 3)
+    *face_index_count = 3 * num_faces;
+
+    // Return created Vertex Array Object
+    return vertex_array;
 }

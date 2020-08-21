@@ -9,6 +9,7 @@ uniform int num_spotlights;
 uniform vec3 light_ambient;
 uniform vec3 light_position[24];
 uniform vec3 light_color[24];
+uniform vec2 pointlight_attenuation;
 uniform vec3 spotlight_position[6];
 uniform vec3 spotlight_direction[6];
 uniform vec3 spotlight_color[6];
@@ -27,8 +28,8 @@ void main() {
 
     int i;
 
-    float full_light_dist = 1.5;
-    float no_light_dist = 15.0;
+    float full_light_dist = pointlight_attenuation.x;
+    float no_light_dist = pointlight_attenuation.y;
     float attenuation_k = 1.0 / (full_light_dist * full_light_dist);
     for(i = 0; i < num_lights; i++) {
         vec3 light_vector = light_position[i] - world_position;
