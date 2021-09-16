@@ -1,0 +1,32 @@
+############
+CXX= g++
+CXX_FLAGS= -std=c++11
+
+INC= -I"$(HOMEPATH)\local\include" -I.\include
+LIB= -L"$(HOMEPATH)\local\lib" -lglfw3dll -lglad
+
+
+SRCDIR= src
+OBJDIR= obj
+BINDIR= bin
+
+OBJS= $(addprefix $(OBJDIR)\, main.o objloader.o imgreader.o)
+EXEC= $(addprefix $(BINDIR)\, objloader.exe)
+
+mkobjdir:= $(shell if not exist $(OBJDIR) mkdir $(OBJDIR))
+mkbindir:= $(shell if not exist $(BINDIR) mkdir $(BINDIR))
+
+
+# BUILD EVERYTHING
+all: $(EXEC)
+
+$(EXEC): $(OBJS)
+	$(CXX) -o $@ $^ $(LIB)
+
+$(OBJDIR)\\%.o: $(SRCDIR)\%.cpp
+	$(CXX) $(CXX_FLAGS) -c -o $@ $< $(INC)
+
+
+# REMOVE OLD FILES
+clean:
+	del $(OBJS) $(EXEC)
