@@ -18,6 +18,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
+
 //#define OFFSCREEN
 
 enum ModelType : uint8_t {PLANE, CUBE, SPHERE};
@@ -82,7 +86,7 @@ void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods)
 void saveImage(const char *filename, App &app);
 void loadShader(std::string shader_filename_base, App &app);
 GLint compileShader(char *source, int32_t length, GLenum type);
-GLuint createShaderProgram(GLuint shaders[], uint num_shaders);
+GLuint createShaderProgram(GLuint shaders[], uint32_t num_shaders);
 void linkShaderProgram(GLuint program);
 std::string shaderTypeToString(GLenum type);
 int32_t readFile(const char* filename, char** data_ptr);
@@ -627,7 +631,7 @@ GLint compileShader(char *source, int32_t length, GLenum type)
     return shader;
 }
 
-GLuint createShaderProgram(GLuint shaders[], uint num_shaders)
+GLuint createShaderProgram(GLuint shaders[], uint32_t num_shaders)
 {
     // Create a GPU program
     GLuint program = glCreateProgram();
