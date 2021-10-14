@@ -24,29 +24,13 @@
 
 //#define OFFSCREEN
 
-enum ModelType : uint8_t {PLANE, CUBE, SPHERE};
-
 typedef struct Model {
     GLuint vertex_array;
     GLuint face_index_count;
 } Model;
 
-typedef struct Object {
-    ModelType type;
-    bool textured;
-    glm::vec3 material_color;
-    glm::vec3 material_specular;
-    GLfloat material_shininess;
-    glm::vec3 center;
-    GLfloat size;
-    GLfloat rotate_x;
-    GLfloat rotate_y;
-    GLfloat rotate_z;
-} Object;
-
 typedef struct Scene {
     glm::vec3 camera_pos;
-    //std::vector<Object*> models;
     Model model;
     glm::vec3 ambient_light;
     int num_lights;
@@ -67,10 +51,7 @@ typedef struct App {
     GLuint vertex_texcoord_attrib;
     GLuint point_center_attrib;
     GLuint point_color_attrib;
-    GLuint splat_texture;
-    Model plane_model;
-    Model cube_model;
-    Model sphere_model;
+    GLuint point_size_attrib;
     glm::mat4 mat_model;
     glm::mat3 mat_normal;
     Scene scene;
@@ -78,7 +59,6 @@ typedef struct App {
 
 void init(GLFWwindow *window, int width, int height, float camera_offset, const char *scene_filename, App &app_ptr);
 void initializeScene(const char *scene_filename, App &app);
-void initializeTextures(App &app);
 void initializeUniforms(float camera_offset, App &app);
 void idle(GLFWwindow *window, App &app_ptr);
 void render(GLFWwindow *window, App &app_ptr);
@@ -90,29 +70,26 @@ GLuint createShaderProgram(GLuint shaders[], uint32_t num_shaders);
 void linkShaderProgram(GLuint program);
 std::string shaderTypeToString(GLenum type);
 int32_t readFile(const char* filename, char** data_ptr);
-GLuint createPlaneVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
-GLuint createCubeVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
-GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texcoord_attrib, GLuint *face_index_count);
-GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32_t num_points, GLuint position_attrib, GLuint normal_attrib,
-                           GLuint texcoord_attrib, GLuint point_center_attrib, GLuint point_color_attrib, GLuint *face_index_count);
-//void addSphereToModel(float x, float y, float z, float size, float red, float green, float blue, int slices, int stacks, int sphere_num, GLfloat *vertices, GLfloat *normals, GLfloat *colors, GLuint *indices);
-//GLuint createVertexArrayObject(int num_verts, int num_faces, GLuint position_attrib, GLuint normal_attrib, GLuint color_attrib, GLfloat *vertices, GLfloat *normals, GLfloat *colors, GLuint *indices);
+GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, GLfloat *point_sizes, uint32_t num_points, GLuint position_attrib,
+                           GLuint normal_attrib, GLuint texcoord_attrib, GLuint point_center_attrib, GLuint point_color_attrib,
+                           GLuint point_size_attrib, GLuint *face_index_count);
 
 int main(int argc, char **argv)
 {
     // Read command line parameters for overall width / height
     int width = 1440;
     int height = 720;
-    std::string save_filename = "frame";
+    std::string save_filename = "";
     float camera_offset = 0.0f;
     if (argc >= 2) width = std::stoi(argv[1]);
     if (argc >= 3) height = std::stoi(argv[2]);
-    if (argc >= 4) save_filename = argv[3];
-    if (argc >= 5) camera_offset = std::stof(argv[4]);
+    if (argc >= 4) camera_offset = std::stof(argv[3]);
+    if (argc >= 5) save_filename = argv[4];
 
     // Initialize GLFW
     if (!glfwInit())
     {
+        std::cerr << "Error: could not initialize GLFW" << std::endl;
         exit(1);
     }
 
@@ -121,20 +98,22 @@ int main(int argc, char **argv)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_SAMPLES, 4);
 #ifdef OFFSCREEN
     GLFWwindow *window = glfwCreateWindow(128, 64, "OmniStereo", NULL, NULL);
 #else
+    glfwWindowHint(GLFW_SAMPLES, 4);
     GLFWwindow *window = glfwCreateWindow(width, height, "OmniStereo", NULL, NULL);
 #endif
 
     // Make window's context current
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(0); // disable v-sync for max frame rate measurements
+    glfwSwapInterval(1);
+    //glfwSwapInterval(0); // disable v-sync for max frame rate measurements
 
     // Initialize GLAD OpenGL extension handling
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
+        std::cerr << "Error: could not initialize GLAD" << std::endl;
         exit(1);
     }
 
@@ -143,22 +122,23 @@ int main(int argc, char **argv)
 
     // Main render loop
     App app;
-    //init(window, width, height, "resrc/scenes/demo_scene.json", app);
-    init(window, width, height, camera_offset, "resrc/ScanLook_Vehicle07_scene.txt", app);
-    //init(window, width, height, camera_offset, "resrc/box4rawparticles_scene.txt", app);
+    //init(window, width, height, camera_offset, "resrc/ScanLook_Vehicle07_scene.pvr", app);
+    init(window, width, height, camera_offset, "resrc/gromacs_full-equil.pvr", app);
 
     int frame_idx = 1;
     char output_filename[128];
-    //sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
     sprintf(output_filename, "output/%s_%05d.ppm", save_filename.c_str(), frame_idx);
     double previous_time = glfwGetTime();
     int frame_count = 0;
     render(window, app);
-    while (!glfwWindowShouldClose(window) && frame_idx <= 1050)
-    //while (!glfwWindowShouldClose(window))
+    //while (!glfwWindowShouldClose(window) && frame_idx <= 1050)
+    while (!glfwWindowShouldClose(window))
     {
         // Save image
-        saveImage(output_filename, app);
+        if (save_filename != "")
+        {
+            saveImage(output_filename, app);
+        }
 
         // Measure speed
         double current_time = glfwGetTime();
@@ -176,7 +156,6 @@ int main(int argc, char **argv)
         idle(window, app);
 
         frame_idx++;
-        //sprintf(output_filename, "/projects/visualization/marrinan/omnistereo_output/frame_%05d.ppm", frame_idx);
         sprintf(output_filename, "output/%s_%05d.ppm", save_filename.c_str(), frame_idx);
     }
 
@@ -242,13 +221,9 @@ void init(GLFWwindow *window, int width, int height, float camera_offset, const 
     glViewport(0, 0, app.framebuffer_width, app.framebuffer_height);
     glClearColor(0.68, 0.85, 0.95, 1.0);
     glEnable(GL_DEPTH_TEST);
+#ifndef OFFSCREEN
     glEnable(GL_MULTISAMPLE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glBlendEquation(GL_FUNC_ADD);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glFrontFace(GL_CCW);
+#endif
     glPatchParameteri(GL_PATCH_VERTICES, 3);
 
     // Initialize application
@@ -257,19 +232,9 @@ void init(GLFWwindow *window, int width, int height, float camera_offset, const 
     app.vertex_texcoord_attrib = 2;
     app.point_center_attrib = 3;
     app.point_color_attrib = 4;
-
-    app.plane_model.vertex_array = createPlaneVao(app.vertex_position_attrib, app.vertex_normal_attrib, app.vertex_texcoord_attrib, &(app.plane_model.face_index_count));
-    app.cube_model.vertex_array = createCubeVao(app.vertex_position_attrib, app.vertex_normal_attrib, app.vertex_texcoord_attrib, &(app.cube_model.face_index_count));
-    app.sphere_model.vertex_array = createSphereVao(app.vertex_position_attrib, app.vertex_normal_attrib, app.vertex_texcoord_attrib, &(app.sphere_model.face_index_count));
-
-    std::cout << "Model [plane]: " << app.plane_model.face_index_count / 3 << " triangles" << std::endl;
-    std::cout << "Model [cube]: " << app.cube_model.face_index_count / 3 << " triangles" << std::endl;
-    std::cout << "Model [sphere]: " << app.sphere_model.face_index_count / 3 << " triangles" << std::endl;
+    app.point_size_attrib = 5;
 
     initializeScene(scene_filename, app);
-    //initializeScene(jsobject::parseFromFile(scene_filename), app.scene);
-
-    initializeTextures(app);
 
     loadShader("resrc/shaders/equirect_color", app);
 
@@ -289,7 +254,7 @@ void initializeScene(const char *scene_filename, App &app)
     std::string line;
     int section = NONE;
     int light_count, point_count, light_idx = 0, point_idx = 0;
-    GLfloat *point_centers, *point_colors;
+    GLfloat *point_centers, *point_colors, *point_sizes;
     float x, y, z, size, red, green, blue;
     int skip = 1; // 1 out ouf every `skip` points will be rendered
     while (std::getline(scene_file, line))
@@ -320,6 +285,7 @@ void initializeScene(const char *scene_filename, App &app)
             app.scene.num_points = (point_count - 1) / skip + 1;
             point_centers = new GLfloat[3 * app.scene.num_points];
             point_colors = new GLfloat[3 * app.scene.num_points];
+            point_sizes = new GLfloat[app.scene.num_points];
             section = POINTS;
         }
         // camera data
@@ -354,40 +320,24 @@ void initializeScene(const char *scene_filename, App &app)
                 point_centers[3 * (point_idx / skip)] = x;
                 point_centers[3 * (point_idx / skip) + 1] = y;
                 point_centers[3 * (point_idx / skip) + 2] = z;
+                point_sizes[point_idx / skip] = size;
                 point_colors[3 * (point_idx / skip)] = red;
                 point_colors[3 * (point_idx / skip) + 1] = green;
                 point_colors[3 * (point_idx / skip) + 2] = blue;
             }
             point_idx++;
-            
-            /*
-            if (point_idx % skip == 0)
-            {
-                Object *model = new Object();
-                model->type = ModelType::SPHERE;
-                model->textured = false;
-                model->material_color = glm::vec3(red, green, blue);
-                model->material_specular = glm::vec3(1.0, 1.0, 1.0);
-                model->material_shininess = 64.0;
-                model->center = glm::vec3(x, y, z);
-                model->size = size;
-                model->rotate_x = 0.0;
-                model->rotate_y = 0.0;
-                model->rotate_z = 0.0;
-                app.scene.models.push_back(model);
-            }
-            point_idx++;
-            */
         }
     }
     std::cout << point_idx / skip << "/" << app.scene.num_points << std::endl;
-    app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, app.scene.num_points, app.vertex_position_attrib,
-        app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, &(app.scene.model.face_index_count));
+    app.scene.model.vertex_array = createPointCloudVao(point_centers, point_colors, point_sizes, app.scene.num_points, app.vertex_position_attrib,
+        app.vertex_normal_attrib, app.vertex_texcoord_attrib, app.point_center_attrib, app.point_color_attrib, app.point_size_attrib, &(app.scene.model.face_index_count));
     delete[] point_centers;
     delete[] point_colors;
+    delete[] point_sizes;
 
     std::cout << "Finished" << std::endl;
 
+    /*
     glm::vec3 camera_move_direction = glm::vec3(0.98348, -0.03766, 0.17702);
     app.scene.camera_pos = app.scene.camera_pos - (-75.0f * camera_move_direction);
 
@@ -397,25 +347,7 @@ void initializeScene(const char *scene_filename, App &app)
     // move (260.6222, -9.9799, 46.9103)
 
     app.scene.camera_pos = app.scene.camera_pos + ((-0.2f * 264.0f) * camera_move_direction);
-}
-
-void initializeTextures(App &app) {
-    GLuint texture_id;
-    glGenTextures(1, &texture_id);
-    glBindTexture(GL_TEXTURE_2D, texture_id);
-
-    int img_w, img_h, img_c;
-    uint8_t *pixels = stbi_load("resrc/images/splat.png", &img_w, &img_h, &img_c, STBI_rgb_alpha);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img_w, img_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    app.splat_texture = texture_id;
+    */
 }
 
 void initializeUniforms(float camera_offset, App &app)
@@ -428,8 +360,6 @@ void initializeUniforms(float camera_offset, App &app)
     glUniform3fv(app.uniforms["light_color[0]"], app.scene.num_lights, app.scene.light_colors);
     glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
     glUniform1f(app.uniforms["camera_offset"], camera_offset);
-    glUniform1f(app.uniforms["model_size"], 0.4);
-    //glUniform1f(app.uniforms["model_size"], 0.08);
 
     glUseProgram(0);
 }
@@ -437,74 +367,30 @@ void initializeUniforms(float camera_offset, App &app)
 void idle(GLFWwindow *window, App &app)
 {
     // update camera
-    glm::vec3 camera_move_direction = glm::vec3(0.98348, -0.03766, 0.17702);
-    app.scene.camera_pos = app.scene.camera_pos + (-0.2f * camera_move_direction);
-    //app.scene.camera_pos[0] += 0.25;
-    glUseProgram(app.program);
-    glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
-    glUseProgram(0);
+    //glm::vec3 camera_move_direction = glm::vec3(0.98348, -0.03766, 0.17702);
+    //app.scene.camera_pos = app.scene.camera_pos + (-0.2f * camera_move_direction);
+    //glUseProgram(app.program);
+    //glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
+    //glUseProgram(0);
 
     render(window, app);
 }
 
 void render(GLFWwindow *window, App &app)
 {
-    int i;
-
     glBindFramebuffer(GL_FRAMEBUFFER, app.framebuffer);
 
     // Delete previous frame (reset both framebuffer and z-buffer)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
     // Select shader program to use
     glUseProgram(app.program);
-    
-    // Draw all models
-    
-    // Upload dynamic values to shader uniform variables
-    glUniform3fv(app.uniforms["camera_position"], 1, glm::value_ptr(app.scene.camera_pos));
-    
-    // Set texture
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, app.splat_texture);
-    glUniform1i(app.uniforms["image"], 0);
 
     // Render
     glBindVertexArray(app.scene.model.vertex_array);
     glPatchParameteri(GL_PATCH_VERTICES, 3);
     glDrawElementsInstanced(GL_PATCHES, app.scene.model.face_index_count, GL_UNSIGNED_SHORT, 0, app.scene.num_points);
     glBindVertexArray(0);
-    
-    /*
-    for (i = 0; i < app.scene.models.size(); i++)
-    {
-        // Upload values to shader uniform variables per model
-        glUniform3fv(app.uniforms["model_center"], 1, glm::value_ptr(app.scene.models[i]->center));
-        glUniform1f(app.uniforms["model_size"], app.scene.models[i]->size);
-        glUniform3fv(app.uniforms["material_color"], 1, glm::value_ptr(app.scene.models[i]->material_color));
-        //glUniform3fv(app.uniforms["material_specular"], 1, glm::value_ptr(app.scene.models[i]->material_specular));
-        //glUniform1f(app.uniforms["material_shininess"], app.scene.models[i]->material_shininess);
-
-        // Render model
-        Model *model;
-        switch (app.scene.models[i]->type)
-        {
-            case ModelType::PLANE:
-                model = &(app.plane_model);
-                break;
-            case ModelType::CUBE:
-                model = &(app.cube_model);
-                break;
-            case ModelType::SPHERE:
-                model = &(app.sphere_model);
-                break;
-        }
-        glBindVertexArray(model->vertex_array);
-        glDrawElements(GL_PATCHES, model->face_index_count, GL_UNSIGNED_SHORT, 0);
-        glBindVertexArray(0);
-    }
-    */
 
     glUseProgram(0);
 
@@ -517,7 +403,7 @@ void onKeyboard(GLFWwindow *window, int key, int scancode, int action, int mods)
 
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
     {
-        saveImage("equirect.ppm", *app_ptr);
+        saveImage("output/equirect.ppm", *app_ptr);
     }
 }
 
@@ -577,6 +463,7 @@ void loadShader(std::string shader_filename_base, App &app)
     glBindAttribLocation(app.program, app.vertex_texcoord_attrib, "vertex_texcoord");
     glBindAttribLocation(app.program, app.point_center_attrib, "point_center");
     glBindAttribLocation(app.program, app.point_color_attrib, "point_color");
+    glBindAttribLocation(app.program, app.point_size_attrib, "point_size");
     glBindFragDataLocation(app.program, 0, "FragColor");
 
     // Link compiled GPU program
@@ -1127,8 +1014,9 @@ GLuint createSphereVao(GLuint position_attrib, GLuint normal_attrib, GLuint texc
     return vertex_array;
 }
 
-GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32_t num_points, GLuint position_attrib, GLuint normal_attrib,
-                           GLuint texcoord_attrib, GLuint point_center_attrib, GLuint point_color_attrib, GLuint *face_index_count)
+GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, GLfloat *point_sizes, uint32_t num_points, GLuint position_attrib,
+                           GLuint normal_attrib, GLuint texcoord_attrib, GLuint point_center_attrib, GLuint point_color_attrib,
+                           GLuint point_size_attrib, GLuint *face_index_count)
 {
     // Create a new Vertex Array Object
     GLuint vertex_array;
@@ -1295,6 +1183,21 @@ GLuint createPointCloudVao(GLfloat *point_centers, GLfloat *point_colors, uint32
     glVertexAttribPointer(point_color_attrib, 3, GL_FLOAT, false, 0, 0);
     // advance one vertex attribute per instance
     glVertexAttribDivisor(point_color_attrib, 1);
+
+    // Create buffer to store point sizes
+    GLuint point_size_buffer;
+    glGenBuffers(1, &point_size_buffer);
+    // Set newly created buffer as the active one we are modifying
+    glBindBuffer(GL_ARRAY_BUFFER, point_size_buffer);
+    // Store array of point sizes in the point_size_buffer
+    glBufferData(GL_ARRAY_BUFFER, num_points * sizeof(GLfloat), point_sizes, GL_STATIC_DRAW);
+    // Enable point_size_attrib in our GPU program
+    glEnableVertexAttribArray(point_size_attrib);
+    // Attach point_size_buffer to the point_size_attrib
+    // (as floating point values)
+    glVertexAttribPointer(point_size_attrib, 1, GL_FLOAT, false, 0, 0);
+    // advance one vertex attribute per instance
+    glVertexAttribDivisor(point_size_attrib, 1);
 
 
     // No longer modifying our Vertex Array Object, so deselect
